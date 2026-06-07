@@ -4,7 +4,7 @@ set -e
 
 # Build directory for allocation checks
 BUILD_DIR="build-allocs"
-TRACE_FILE="data/tiny.trace"
+TRACE_FILE="data/large.trace"
 
 # Default action is checking allocations
 ACTION=${1:-check}
