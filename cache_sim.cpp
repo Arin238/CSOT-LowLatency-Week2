@@ -23,6 +23,35 @@
 #include <vector>
 #include <cstring>
 
+#ifdef CSOT_CHECK_ALLOCS
+#include <new>
+#include <iostream>
+#include <cstdlib>
+#ifdef __linux__
+#include <sys/prctl.h>
+#endif
+
+thread_local bool g_hot_path_active = false;
+
+void* operator new(std::size_t size) {
+    if (g_hot_path_active) {
+        std::cerr << "\n[ALLOCATION DETECTED ON HOT PATH] Size: " << size << " bytes\n";
+        std::abort();
+    }
+    void* p = std::malloc(size);
+    if (!p) throw std::bad_alloc();
+    return p;
+}
+
+void operator delete(void* p) noexcept {
+    std::free(p);
+}
+
+void operator delete(void* p, std::size_t) noexcept {
+    std::free(p);
+}
+#endif
+
 namespace {
 
 // Geometry constants from CACHE_SPEC.md
@@ -69,6 +98,13 @@ public:
     }
 
     csot::CacheStats run(const csot::MemAccess* acc, std::size_t n) override {
+#ifdef CSOT_CHECK_ALLOCS
+        g_hot_path_active = true;
+#ifdef __linux__
+        prctl(PR_TASK_PERF_EVENTS_ENABLE);
+#endif
+#endif
+
         csot::CacheStats st{};
 
         for (std::size_t i = 0; i < n; ++i) {
@@ -142,6 +178,13 @@ public:
             // place the requested line into L1; dirty iff write
             set_line(l1, s1, v1, true, wr ? 1 : 0, t1);
         }
+
+#ifdef CSOT_CHECK_ALLOCS
+#ifdef __linux__
+        prctl(PR_TASK_PERF_EVENTS_DISABLE);
+#endif
+        g_hot_path_active = false;
+#endif
 
         return st;
     }

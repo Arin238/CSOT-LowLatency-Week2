@@ -69,6 +69,12 @@ if(ENABLE_SANITIZERS)
     add_link_options(-fsanitize=address,undefined)
 endif()
 
+# -------- Optional: Hot Path Allocation Check --------
+option(CSOT_CHECK_ALLOCS "Verify zero heap allocation on the hot path" OFF)
+if(CSOT_CHECK_ALLOCS)
+    add_compile_definitions(CSOT_CHECK_ALLOCS)
+endif()
+
 # -------- Optional: LTO for Release --------
 option(ENABLE_LTO "Enable link-time optimization for Release" ON)
 if(ENABLE_LTO AND CMAKE_BUILD_TYPE STREQUAL "Release")
