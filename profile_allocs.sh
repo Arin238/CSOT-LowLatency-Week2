@@ -20,19 +20,26 @@ if [ ! -f "$TRACE_FILE" ]; then
 fi
 
 # Helper function to build the binary
+# $1 = build type (Debug or Release)
+# $2 = CSOT_CHECK_ALLOCS (ON or OFF)
 build_binary() {
-    local check_allocs=$1
-    echo "=== Building Cache Sim Runner (CheckAllocs=$check_allocs) ==="
+    local build_type=$1
+    local check_allocs=$2
+    echo "=== Building Cache Sim Runner (Type=$build_type, CheckAllocs=$check_allocs) ==="
+    # Wipe cmake cache to avoid stale variable issues
+    rm -f "$BUILD_DIR/CMakeCache.txt"
     cmake -B "$BUILD_DIR" \
-          -DCMAKE_BUILD_TYPE=Release \
+          -DCMAKE_BUILD_TYPE="$build_type" \
           -DCSOT_CACHE_SIM_SRC=cache_sim.cpp \
-          -DCSOT_CHECK_ALLOCS="$check_allocs"
+          -DCSOT_CHECK_ALLOCS="$check_allocs" \
+          -DENABLE_LTO=OFF
     cmake --build "$BUILD_DIR" -j
 }
 
 case "$ACTION" in
     "check")
-        build_binary "ON"
+        # Build in Debug (-O0) so the compiler cannot elide allocations
+        build_binary "Debug" "ON"
         echo "=== Running Hot Path Allocation Verification ==="
         echo "If any heap allocation (new/malloc) occurs on the hot path, the program will crash immediately."
         ./"$BUILD_DIR"/cache_sim_runner "$TRACE_FILE"
@@ -40,7 +47,7 @@ case "$ACTION" in
         ;;
 
     "stats")
-        build_binary "OFF"
+        build_binary "Release" "OFF"
         echo "=== Collecting Hardware PMU Performance Counters (perf stat) ==="
         # Record key CPU and Cache counters for low-latency tuning
         perf stat -d -d -d -- \
@@ -48,7 +55,7 @@ case "$ACTION" in
         ;;
 
     "record")
-        build_binary "OFF"
+        build_binary "Release" "OFF"
         echo "=== Recording CPU Cycles (perf record) ==="
         echo "Recording call graphs at 999Hz sample rate. Use 'perf report' afterward to inspect."
         perf record -F 999 -g --call-graph dwarf -- \
@@ -59,7 +66,7 @@ case "$ACTION" in
         ;;
 
     "malloc")
-        build_binary "ON"
+        build_binary "Debug" "ON"
         # Find libc path dynamically
         LIBC_PATH=$(ldd ./"$BUILD_DIR"/cache_sim_runner | grep libc.so | awk '{print $3}')
         if [ -z "$LIBC_PATH" ]; then
