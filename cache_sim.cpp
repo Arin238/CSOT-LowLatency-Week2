@@ -37,51 +37,44 @@ constexpr int L2_WAYS = 8;
 constexpr int L2_SETS = 512;
 constexpr int L2_INDEX_BITS = 9;
 
-struct Line {
-    bool valid;
-    bool dirty;
-    std::uint64_t tag;
+// SoA Level layout: flat arrays per field, plus per-set LRU order (MRU..LRU)
+struct Level {
+    static constexpr std::size_t WAYS = 8;
+    std::size_t sets = 0;
+    std::vector<std::uint64_t> tag;   // size = sets * WAYS
+    std::vector<uint8_t> valid;       // 0/1, size = sets * WAYS
+    std::vector<uint8_t> dirty;       // 0/1, size = sets * WAYS
+    std::vector<uint8_t> lru;         // per-set MRU..LRU order, size = sets * WAYS
+
+    void init(std::size_t s) {
+        sets = s;
+        tag.assign(s * WAYS, 0);
+        valid.assign(s * WAYS, 0);
+        dirty.assign(s * WAYS, 0);
+        lru.assign(s * WAYS, 0);
+        for (std::size_t si = 0; si < s; ++si) {
+            for (std::size_t w = 0; w < WAYS; ++w) {
+                lru[si * WAYS + w] = static_cast<uint8_t>(w); // MRU..LRU initial
+            }
+        }
+    }
 };
 
-struct Set {
-    Line ways[L1_WAYS];        // max ways; we'll use appropriate WAYS per cache
-    int lru_order[L1_WAYS];    // MRU..LRU
-};
-
-// We reuse Set but interpret ways count appropriately for L1/L2.
 class BaselineCacheSim final : public csot::CacheSim {
 public:
     void on_init() override {
-        // allocate and initialize L1 and L2 sets
-        l1_sets.resize(L1_SETS);
-        l2_sets.resize(L2_SETS);
-
-        // initialize each set: mark lines invalid and set canonical LRU order
-        for (int si = 0; si < L1_SETS; ++si) {
-            for (int w = 0; w < L1_WAYS; ++w) {
-                l1_sets[si].ways[w].valid = false;
-                l1_sets[si].ways[w].dirty = false;
-                l1_sets[si].ways[w].tag = 0;
-                l1_sets[si].lru_order[w] = w;
-            }
-        }
-        for (int si = 0; si < L2_SETS; ++si) {
-            for (int w = 0; w < L2_WAYS; ++w) {
-                l2_sets[si].ways[w].valid = false;
-                l2_sets[si].ways[w].dirty = false;
-                l2_sets[si].ways[w].tag = 0;
-                l2_sets[si].lru_order[w] = w;
-            }
-        }
+        // allocate and initialize L1 and L2 levels (SoA)
+        l1.init(L1_SETS);
+        l2.init(L2_SETS);
     }
 
     csot::CacheStats run(const csot::MemAccess* acc, std::size_t n) override {
         csot::CacheStats st{};
 
         for (std::size_t i = 0; i < n; ++i) {
-            const csot::MemAccess &a = acc[i];
-            const uint64_t addr = a.address;
-            const bool wr = (a.is_write != 0);
+            const csot::MemAccess &a = acc[i]; //ARIN- cache
+            const uint64_t addr = a.address; // ARIN- Gain Intuition
+            const bool wr = (a.is_write != 0); // ARIN- Gain Intuition
 
             // §5.1 count the access
             if (wr) ++st.writes; else ++st.reads;
@@ -96,107 +89,108 @@ public:
             const uint64_t t2 = b >> L2_INDEX_BITS; // b >> 9
 
             // §5.2 probe L1
-            int w1 = find_way(l1_sets, L1_WAYS, s1, t1);
+            int w1 = find_way(l1, s1, t1);
             if (w1 >= 0) {
                 ++st.l1_hits;
-                touch_mru(l1_sets, L1_WAYS, s1, w1);
-                if (wr) l1_sets[s1].ways[w1].dirty = true;
+                touch_mru(l1, s1, w1);
+                if (wr) l1.dirty[static_cast<std::size_t>(s1) * Level::WAYS + w1] = 1;
                 continue; // done with this access
             }
             ++st.l1_misses;
 
             // §5.3 probe L2 (only on L1 miss)
-            int w2 = find_way(l2_sets, L2_WAYS, s2, t2);
+            int w2 = find_way(l2, s2, t2);
             if (w2 >= 0) {
                 ++st.l2_hits;
-                touch_mru(l2_sets, L2_WAYS, s2, w2);
+                touch_mru(l2, s2, w2);
             } else {
                 ++st.l2_misses;
-                int victim = victim_way(l2_sets, L2_WAYS, s2);
-                if (l2_sets[s2].ways[victim].valid && l2_sets[s2].ways[victim].dirty) {
+                int victim = victim_way(l2, s2);
+                if (l2.valid[static_cast<std::size_t>(s2) * Level::WAYS + victim] &&
+                    l2.dirty[static_cast<std::size_t>(s2) * Level::WAYS + victim]) {
                     ++st.dirty_writebacks; // L2 -> main memory
                 }
                 // install clean line
-                set_line(l2_sets, L2_WAYS, s2, victim, true, false, t2);
+                set_line(l2, s2, victim, true, false, t2);
             }
 
             // §5.4 fill into L1 (write-allocate)
-            int v1 = victim_way(l1_sets, L1_WAYS, s1);
-            if (l1_sets[s1].ways[v1].valid && l1_sets[s1].ways[v1].dirty) {
+            int v1 = victim_way(l1, s1);
+            if (l1.valid[static_cast<std::size_t>(s1) * Level::WAYS + v1] &&
+                l1.dirty[static_cast<std::size_t>(s1) * Level::WAYS + v1]) {
                 // Writing dirty L1 victim back to L2 (§5.5)
-                uint64_t victim_tag = l1_sets[s1].ways[v1].tag;
+                uint64_t victim_tag = l1.tag[static_cast<std::size_t>(s1) * Level::WAYS + v1];
                 uint64_t bv = (victim_tag << L1_INDEX_BITS) | static_cast<uint64_t>(s1);
                 int s2v = static_cast<int>(bv & (L2_SETS - 1));
                 uint64_t t2v = bv >> L2_INDEX_BITS;
 
-                int wv = find_way(l2_sets, L2_WAYS, s2v, t2v);
+                int wv = find_way(l2, s2v, t2v);
                 if (wv >= 0) {
                     // set dirty on existing L2 line; do NOT touch LRU or counts
-                    l2_sets[s2v].ways[wv].dirty = true;
+                    l2.dirty[static_cast<std::size_t>(s2v) * Level::WAYS + wv] = 1;
                 } else {
                     // install dirty into L2; may evict L2 victim -> memory
-                    int vv = victim_way(l2_sets, L2_WAYS, s2v);
-                    if (l2_sets[s2v].ways[vv].valid && l2_sets[s2v].ways[vv].dirty) {
+                    int vv = victim_way(l2, s2v);
+                    if (l2.valid[static_cast<std::size_t>(s2v) * Level::WAYS + vv] &&
+                        l2.dirty[static_cast<std::size_t>(s2v) * Level::WAYS + vv]) {
                         ++st.dirty_writebacks;
                     }
-                    set_line(l2_sets, L2_WAYS, s2v, vv, true, true, t2v);
+                    set_line(l2, s2v, vv, true, true, t2v);
                 }
             }
 
             // place the requested line into L1; dirty iff write
-            set_line(l1_sets, L1_WAYS, s1, v1, true, wr, t1);
+            set_line(l1, s1, v1, true, wr ? 1 : 0, t1);
         }
 
         return st;
     }
 
 private:
-    // storage for sets: note we use the same Set type sized for L1_WAYS
-    std::vector<Set> l1_sets;
-    std::vector<Set> l2_sets;
+    Level l1;
+    Level l2;
 
-    // find the way index with matching tag in given sets array; return -1 if not found
-    static int find_way(const std::vector<Set> &sets, int ways, int set_idx, uint64_t tag) {
-        const Set &s = sets[set_idx];
-        for (int w = 0; w < ways; ++w) {
-            if (s.ways[w].valid && s.ways[w].tag == tag) return w;
+    // find the way index with matching tag in a Level; return -1 if not found
+    static int find_way(const Level &L, int set_idx, uint64_t tag) {
+        const std::size_t base = static_cast<std::size_t>(set_idx) * Level::WAYS;
+        for (std::size_t w = 0; w < Level::WAYS; ++w) {
+            if (L.valid[base + w] && L.tag[base + w] == tag) return static_cast<int>(w);
         }
         return -1;
     }
 
-    // touch: move way to MRU in lru_order
-    static void touch_mru(std::vector<Set> &sets, int ways, int set_idx, int way) {
-        Set &s = sets[set_idx];
+    // touch: move way to MRU in per-set lru array
+    static void touch_mru(Level &L, int set_idx, int way) {
+        std::size_t base = static_cast<std::size_t>(set_idx) * Level::WAYS;
         int pos = -1;
-        for (int i = 0; i < ways; ++i) if (s.lru_order[i] == way) { pos = i; break; }
-        if (pos <= 0) return; // already MRU or not found
-        for (int i = pos; i > 0; --i) s.lru_order[i] = s.lru_order[i-1];
-        s.lru_order[0] = way;
+        for (std::size_t i = 0; i < Level::WAYS; ++i) if (L.lru[base + i] == static_cast<uint8_t>(way)) { pos = static_cast<int>(i); break; }
+        if (pos <= 0) return;
+        for (int i = pos; i > 0; --i) L.lru[base + i] = L.lru[base + i - 1];
+        L.lru[base + 0] = static_cast<uint8_t>(way);
     }
 
     // pick invalid way if any, else LRU way index
-    static int victim_way(const std::vector<Set> &sets, int ways, int set_idx) {
-        const Set &s = sets[set_idx];
-        for (int w = 0; w < ways; ++w) if (!s.ways[w].valid) return w;
-        return s.lru_order[ways - 1];
+    static int victim_way(const Level &L, int set_idx) {
+        std::size_t base = static_cast<std::size_t>(set_idx) * Level::WAYS;
+        for (std::size_t w = 0; w < Level::WAYS; ++w) if (!L.valid[base + w]) return static_cast<int>(w);
+        return static_cast<int>(L.lru[base + Level::WAYS - 1]);
     }
 
-    // set a line and mark MRU
-    static void set_line(std::vector<Set> &sets, int ways, int set_idx, int way, bool valid, bool dirty, uint64_t tag) {
-        Set &s = sets[set_idx];
-        s.ways[way].valid = valid;
-        s.ways[way].dirty = dirty;
-        s.ways[way].tag = tag;
-        // update lru order: move 'way' to MRU
+    // set a line (valid/dirty/tag) and mark MRU for that way
+    static void set_line(Level &L, int set_idx, int way, bool valid, uint8_t dirty, uint64_t tag) {
+        std::size_t base = static_cast<std::size_t>(set_idx) * Level::WAYS;
+        L.valid[base + way] = valid ? 1 : 0;
+        L.dirty[base + way] = dirty ? 1 : 0;
+        L.tag[base + way] = tag;
+        // update MRU
         int pos = -1;
-        for (int i = 0; i < ways; ++i) if (s.lru_order[i] == way) { pos = i; break; }
+        for (std::size_t i = 0; i < Level::WAYS; ++i) if (L.lru[base + i] == static_cast<uint8_t>(way)) { pos = static_cast<int>(i); break; }
         if (pos > 0) {
-            for (int i = pos; i > 0; --i) s.lru_order[i] = s.lru_order[i-1];
-            s.lru_order[0] = way;
+            for (int i = pos; i > 0; --i) L.lru[base + i] = L.lru[base + i - 1];
+            L.lru[base + 0] = static_cast<uint8_t>(way);
         } else if (pos == -1) {
-            // way not present in order (shouldn't happen), rotate right and set at MRU
-            for (int i = ways - 1; i > 0; --i) s.lru_order[i] = s.lru_order[i-1];
-            s.lru_order[0] = way;
+            for (int i = static_cast<int>(Level::WAYS) - 1; i > 0; --i) L.lru[base + i] = L.lru[base + i - 1];
+            L.lru[base + 0] = static_cast<uint8_t>(way);
         }
     }
 };
