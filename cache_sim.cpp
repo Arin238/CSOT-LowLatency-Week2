@@ -106,10 +106,6 @@ public:
 #endif
 
         csot::CacheStats st{};
-        // Temporarily add this inside the hot-path loop of run()
-    volatile int* dummy = new int[n ? 1 : 2]; 
-    delete[] dummy;
-
 
         for (std::size_t i = 0; i < n; ++i) {
             const csot::MemAccess &a = acc[i]; //ARIN- cache
