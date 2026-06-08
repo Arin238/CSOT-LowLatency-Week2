@@ -65,6 +65,8 @@ constexpr int log2_of(int v) { int r = 0; while ((1 << r) < v) ++r; return r; }
 // ============================================================================
 template <int SETS, int WAYS>
 struct Level {
+    static constexpr int NUM_SETS = SETS;
+    static constexpr int NUM_WAYS = WAYS;
     static constexpr int INDEX_BITS = log2_of(SETS);
     static constexpr std::uint64_t INDEX_MASK = SETS - 1;
 
@@ -198,7 +200,7 @@ public:
 
             if (l1_hit) {
                 l1_.touch_mru(s1, w1);
-                l1_.dirty[static_cast<std::size_t>(s1) * L1::WAYS + w1] |= wr;
+                l1_.dirty[static_cast<std::size_t>(s1) * L1::NUM_WAYS + w1] |= wr;
                 continue;
             }
 
@@ -213,18 +215,18 @@ public:
             } else {
                 int victim = l2_.victim_way(s2);
                 // Branchless dirty writeback check
-                st.dirty_writebacks += (l2_.valid[static_cast<std::size_t>(s2) * L2::WAYS + victim] &
-                                        l2_.dirty[static_cast<std::size_t>(s2) * L2::WAYS + victim]);
+                st.dirty_writebacks += (l2_.valid[static_cast<std::size_t>(s2) * L2::NUM_WAYS + victim] &
+                                        l2_.dirty[static_cast<std::size_t>(s2) * L2::NUM_WAYS + victim]);
                 // install clean line
                 l2_.set_line(s2, victim, true, false, t2);
             }
 
             // §5.4 fill into L1 (write-allocate)
             int v1 = l1_.victim_way(s1);
-            if (l1_.valid[static_cast<std::size_t>(s1) * L1::WAYS + v1] &&
-                l1_.dirty[static_cast<std::size_t>(s1) * L1::WAYS + v1]) {
+            if (l1_.valid[static_cast<std::size_t>(s1) * L1::NUM_WAYS + v1] &&
+                l1_.dirty[static_cast<std::size_t>(s1) * L1::NUM_WAYS + v1]) {
                 // Writing dirty L1 victim back to L2 (§5.5)
-                std::uint64_t victim_tag = l1_.tag[static_cast<std::size_t>(s1) * L1::WAYS + v1];
+                std::uint64_t victim_tag = l1_.tag[static_cast<std::size_t>(s1) * L1::NUM_WAYS + v1];
                 std::uint64_t bv = (victim_tag << L1::INDEX_BITS) | static_cast<std::uint64_t>(s1);
                 int s2v = L2::set_of(bv);
                 std::uint64_t t2v = L2::tag_of(bv);
@@ -232,13 +234,13 @@ public:
                 int wv = l2_.find_way(s2v, t2v);
                 if (wv >= 0) {
                     // set dirty on existing L2 line; do NOT touch LRU or counts
-                    l2_.dirty[static_cast<std::size_t>(s2v) * L2::WAYS + wv] = 1;
+                    l2_.dirty[static_cast<std::size_t>(s2v) * L2::NUM_WAYS + wv] = 1;
                 } else {
                     // install dirty into L2; may evict L2 victim -> memory
                     int vv = l2_.victim_way(s2v);
                     // Branchless dirty writeback check
-                    st.dirty_writebacks += (l2_.valid[static_cast<std::size_t>(s2v) * L2::WAYS + vv] &
-                                            l2_.dirty[static_cast<std::size_t>(s2v) * L2::WAYS + vv]);
+                    st.dirty_writebacks += (l2_.valid[static_cast<std::size_t>(s2v) * L2::NUM_WAYS + vv] &
+                                            l2_.dirty[static_cast<std::size_t>(s2v) * L2::NUM_WAYS + vv]);
                     l2_.set_line(s2v, vv, true, true, t2v);
                 }
             }
