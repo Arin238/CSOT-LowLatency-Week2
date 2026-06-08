@@ -110,11 +110,11 @@ public:
         for (std::size_t i = 0; i < n; ++i) {
             const csot::MemAccess &a = acc[i]; //ARIN- cache
             const uint64_t addr = a.address; // ARIN- Gain Intuition
-            const bool wr = (a.is_write != 0); // ARIN- Gain Intuition
+            const uint8_t wr = a.is_write; // ARIN- Gain Intuition
 
             // §5.1 count the access (branchless)
             st.writes += wr;
-            st.reads += !wr;
+            st.reads += (wr ^ 1);
 
             // block address and indices/tags
             const uint64_t b = addr >> 6; // block address
@@ -127,28 +127,31 @@ public:
 
             // §5.2 probe L1
             int w1 = find_way(l1, s1, t1);
-            if (w1 >= 0) {
-                ++st.l1_hits;
+            bool l1_hit = (w1 >= 0);
+            st.l1_hits += l1_hit;
+            st.l1_misses += !l1_hit;
+
+            if (l1_hit) { // Let the CPU predict this! (Very fast)
                 touch_mru(l1, s1, w1);
                 l1.dirty[static_cast<std::size_t>(s1) * Level::WAYS + w1] |= wr;
-                continue; // done with this access
+                continue; 
             }
-            ++st.l1_misses;
 
             // §5.3 probe L2 (only on L1 miss)
             int w2 = find_way(l2, s2, t2);
-            if (w2 >= 0) {
-                ++st.l2_hits;
+            bool l2_hit = (w2 >= 0);
+            st.l2_hits += l2_hit;
+            st.l2_misses += !l2_hit;
+
+            if (l2_hit) {
                 touch_mru(l2, s2, w2);
             } else {
-                ++st.l2_misses;
                 int victim = victim_way(l2, s2);
-                if (l2.valid[static_cast<std::size_t>(s2) * Level::WAYS + victim] &&
-                    l2.dirty[static_cast<std::size_t>(s2) * Level::WAYS + victim]) {
-                    ++st.dirty_writebacks; // L2 -> main memory
-                }
+                // Branchless dirty writeback check
+                st.dirty_writebacks += (l2.valid[static_cast<std::size_t>(s2) * Level::WAYS + victim] & 
+                                        l2.dirty[static_cast<std::size_t>(s2) * Level::WAYS + victim]);
                 // install clean line
-                set_line(l2, s2, victim, true, false, t2);
+                set_line(l2, s2, victim, 1, 0, t2);
             }
 
             // §5.4 fill into L1 (write-allocate)
@@ -168,16 +171,15 @@ public:
                 } else {
                     // install dirty into L2; may evict L2 victim -> memory
                     int vv = victim_way(l2, s2v);
-                    if (l2.valid[static_cast<std::size_t>(s2v) * Level::WAYS + vv] &&
-                        l2.dirty[static_cast<std::size_t>(s2v) * Level::WAYS + vv]) {
-                        ++st.dirty_writebacks;
-                    }
-                    set_line(l2, s2v, vv, true, true, t2v);
+                    // Branchless dirty writeback check
+                    st.dirty_writebacks += (l2.valid[static_cast<std::size_t>(s2v) * Level::WAYS + vv] &
+                                            l2.dirty[static_cast<std::size_t>(s2v) * Level::WAYS + vv]);
+                    set_line(l2, s2v, vv, 1, 1, t2v);
                 }
             }
 
             // place the requested line into L1; dirty iff write
-            set_line(l1, s1, v1, true, wr ? 1 : 0, t1);
+            set_line(l1, s1, v1, 1, wr, t1);
         }
 
 #ifdef CSOT_CHECK_ALLOCS
@@ -197,45 +199,50 @@ private:
     // find the way index with matching tag in a Level; return -1 if not found
     static int find_way(const Level &L, int set_idx, uint64_t tag) {
         const std::size_t base = static_cast<std::size_t>(set_idx) * Level::WAYS;
-        for (std::size_t w = 0; w < Level::WAYS; ++w) {
-            if (L.valid[base + w] && L.tag[base + w] == tag) return static_cast<int>(w);
+        int match = -1;
+        for (int w = 0; w < static_cast<int>(Level::WAYS); ++w) {
+            match = (L.valid[base + w] && L.tag[base + w] == tag) ? w : match;
         }
-        return -1;
+        return match;
     }
 
-    // touch: move way to MRU in per-set lru array
+    // touch: move way to MRU in per-set lru array (branchless shift!)
     static void touch_mru(Level &L, int set_idx, int way) {
-        std::size_t base = static_cast<std::size_t>(set_idx) * Level::WAYS;
-        int pos = -1;
-        for (std::size_t i = 0; i < Level::WAYS; ++i) if (L.lru[base + i] == static_cast<uint8_t>(way)) { pos = static_cast<int>(i); break; }
-        if (pos <= 0) return;
-        for (int i = pos; i > 0; --i) L.lru[base + i] = L.lru[base + i - 1];
-        L.lru[base + 0] = static_cast<uint8_t>(way);
+        const std::size_t base = static_cast<std::size_t>(set_idx) * Level::WAYS;
+        uint8_t target = static_cast<uint8_t>(way);
+        bool found = (L.lru[base] == target);
+        uint8_t prev = L.lru[base];
+        L.lru[base] = target;
+        
+        for (int i = 1; i < static_cast<int>(Level::WAYS); ++i) {
+            uint8_t curr = L.lru[base + i];
+            bool is_target = (curr == target);
+            L.lru[base + i] = found ? curr : prev;
+            found |= is_target;
+            prev = curr;
+        }
     }
 
     // pick invalid way if any, else LRU way index
     static int victim_way(const Level &L, int set_idx) {
-        std::size_t base = static_cast<std::size_t>(set_idx) * Level::WAYS;
-        for (std::size_t w = 0; w < Level::WAYS; ++w) if (!L.valid[base + w]) return static_cast<int>(w);
-        return static_cast<int>(L.lru[base + Level::WAYS - 1]);
+        const std::size_t base = static_cast<std::size_t>(set_idx) * Level::WAYS;
+        int invalid_way = -1;
+        // Search backwards so that the FIRST invalid way (w=0) overwrites the others
+        for (int w = static_cast<int>(Level::WAYS) - 1; w >= 0; --w) {
+            invalid_way = (L.valid[base + w] == 0) ? w : invalid_way;
+        }
+        return (invalid_way != -1) ? invalid_way : static_cast<int>(L.lru[base + Level::WAYS - 1]);
     }
 
     // set a line (valid/dirty/tag) and mark MRU for that way
-    static void set_line(Level &L, int set_idx, int way, bool valid, uint8_t dirty, uint64_t tag) {
+    static void set_line(Level &L, int set_idx, int way, uint8_t valid, uint8_t dirty, uint64_t tag) {
         std::size_t base = static_cast<std::size_t>(set_idx) * Level::WAYS;
-        L.valid[base + way] = valid ? 1 : 0;
-        L.dirty[base + way] = dirty ? 1 : 0;
+        L.valid[base + way] = valid;
+        L.dirty[base + way] = dirty;
         L.tag[base + way] = tag;
-        // update MRU
-        int pos = -1;
-        for (std::size_t i = 0; i < Level::WAYS; ++i) if (L.lru[base + i] == static_cast<uint8_t>(way)) { pos = static_cast<int>(i); break; }
-        if (pos > 0) {
-            for (int i = pos; i > 0; --i) L.lru[base + i] = L.lru[base + i - 1];
-            L.lru[base + 0] = static_cast<uint8_t>(way);
-        } else if (pos == -1) {
-            for (int i = static_cast<int>(Level::WAYS) - 1; i > 0; --i) L.lru[base + i] = L.lru[base + i - 1];
-            L.lru[base + 0] = static_cast<uint8_t>(way);
-        }
+        // Since touch_mru is now branchless and correctly handles MRU shifting,
+        // we can just call it directly!
+        touch_mru(L, set_idx, way);
     }
 };
 
