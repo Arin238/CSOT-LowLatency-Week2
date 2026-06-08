@@ -112,8 +112,9 @@ public:
             const uint64_t addr = a.address; // ARIN- Gain Intuition
             const bool wr = (a.is_write != 0); // ARIN- Gain Intuition
 
-            // §5.1 count the access
-            if (wr) ++st.writes; else ++st.reads;
+            // §5.1 count the access (branchless)
+            st.writes += wr;
+            st.reads += !wr;
 
             // block address and indices/tags
             const uint64_t b = addr >> 6; // block address
