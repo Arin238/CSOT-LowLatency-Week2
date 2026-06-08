@@ -56,6 +56,14 @@ add_compile_options(
 # -------- Tuning (Release only) --------
 add_compile_options($<$<CONFIG:Release>:-O3>)
 add_compile_options($<$<CONFIG:Release>:-fno-omit-frame-pointer>)   # better perf/flame-graph stacks
+
+# Increase constexpr limits to allow building the 8! LRU table
+if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    add_compile_options(-fconstexpr-steps=1000000000)
+elseif (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    add_compile_options(-fconstexpr-ops-limit=1000000000 -fconstexpr-loop-limit=1000000000)
+endif()
+
 if(CSOT_JUDGE_BUILD)
     add_compile_options($<$<CONFIG:Release>:-march=x86-64-v2>)
 else()

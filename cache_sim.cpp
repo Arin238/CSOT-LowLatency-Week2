@@ -58,22 +58,87 @@ namespace {
 constexpr int log2_of(int v) { int r = 0; while ((1 << r) < v) ++r; return r; }
 
 // ============================================================================
-// WayEntry — per-way data packed together for cache-line locality.
-// When find_way scans 8 ways, all tag+valid+dirty data for one set lives
-// in 8 × 16 = 128 bytes = 2 cache lines, instead of bouncing between
-// separate arrays that are tens of KiB apart.
+// Templatized Level — SETS, WAYS, INDEX_BITS are all compile-time constants.
+// The compiler stamps out fully specialized code for Level<64,8> (L1) and
+// Level<512,8> (L2) independently. Loop bounds are immediates, masks are
+// constants, and the 8-way scans can unroll or vectorize.
 // ============================================================================
-struct alignas(16) WayEntry {
-    std::uint64_t tag;      // 8 bytes
-    std::uint8_t  valid;    // 1 byte
-    std::uint8_t  dirty;    // 1 byte
-    std::uint8_t  _pad[6];  // pad to 16 bytes for alignment
+// Compile-time LRU Table Generation (8! = 40320 states)
+// ============================================================================
+using Perm = std::array<std::uint8_t, 8>;
+
+consteval std::uint16_t encode_perm(const Perm& p) {
+    std::uint16_t code = 0;
+    int fact[8] = {1, 1, 2, 6, 24, 120, 720, 5040};
+    for (int i = 0; i < 7; ++i) {
+        int count = 0;
+        for (int j = i + 1; j < 8; ++j) {
+            if (p[j] < p[i]) count++;
+        }
+        code += count * fact[7 - i];
+    }
+    return code;
+}
+
+consteval Perm decode_perm(std::uint16_t code) {
+    Perm p{};
+    int fact[8] = {1, 1, 2, 6, 24, 120, 720, 5040};
+    std::uint8_t available[8] = {0, 1, 2, 3, 4, 5, 6, 7};
+    for (int i = 0; i < 8; ++i) {
+        int idx = code / fact[7 - i];
+        code %= fact[7 - i];
+        p[i] = available[idx];
+        for (int j = idx; j < 7 - i; ++j) {
+            available[j] = available[j + 1];
+        }
+    }
+    return p;
+}
+
+consteval Perm next_perm(Perm p, int way) {
+    int pos = -1;
+    for (int i = 0; i < 8; ++i) {
+        if (p[i] == way) {
+            pos = i;
+            break;
+        }
+    }
+    if (pos == -1) pos = 7;
+    for (int i = pos; i > 0; --i) {
+        p[i] = p[i - 1];
+    }
+    p[0] = static_cast<std::uint8_t>(way);
+    return p;
+}
+
+struct LruTables {
+    std::array<std::uint8_t, 40320> victim{};
+    std::array<std::array<std::uint16_t, 8>, 40320> next_state{};
 };
-static_assert(sizeof(WayEntry) == 16, "WayEntry must be exactly 16 bytes");
+
+consteval LruTables make_lru_tables() {
+    LruTables t{};
+    for (int i = 0; i < 40320; ++i) {
+        Perm p = decode_perm(static_cast<std::uint16_t>(i));
+        t.victim[i] = p[7];
+        for (int w = 0; w < 8; ++w) {
+            t.next_state[i][w] = encode_perm(next_perm(p, w));
+        }
+    }
+    return t;
+}
+
+inline constexpr LruTables kLru = make_lru_tables();
+
+consteval std::uint16_t initial_state() {
+    Perm p{};
+    for (int i = 0; i < 8; ++i) p[i] = static_cast<std::uint8_t>(i);
+    return encode_perm(p);
+}
+inline constexpr std::uint16_t kInitialLruState = initial_state();
 
 // ============================================================================
-// Templatized Level — AoS layout for tag/valid/dirty, separate LRU array.
-// SETS and WAYS are compile-time constants for unrolling and constant folding.
+// Templatized Level
 // ============================================================================
 template <int SETS, int WAYS>
 struct Level {
@@ -82,21 +147,17 @@ struct Level {
     static constexpr int INDEX_BITS = log2_of(SETS);
     static constexpr std::uint64_t INDEX_MASK = SETS - 1;
 
-    // AoS: per-way data packed together (tag + valid + dirty in one struct)
-    // 8 ways × 16 bytes = 128 bytes per set = 2 cache lines per set
-    std::array<WayEntry, SETS * WAYS> ways{};
-
-    // LRU order kept separate — only touched on hits/fills, not during tag scan
-    std::array<std::uint8_t, SETS * WAYS> lru{};
+    // SoA flat arrays — std::array, no heap indirection on hot path
+    std::array<std::uint64_t, SETS * WAYS> tag{};
+    std::array<std::uint8_t,  SETS * WAYS> valid{};
+    std::array<std::uint8_t,  SETS * WAYS> dirty{};
+    std::array<std::uint16_t, SETS> lru{}; // ONE uint16_t PER SET!
 
     void init() {
-        for (auto& w : ways) { w.tag = 0; w.valid = 0; w.dirty = 0; }
-        // Initialize LRU: way 0 = MRU, way WAYS-1 = LRU
-        for (int si = 0; si < SETS; ++si) {
-            for (int w = 0; w < WAYS; ++w) {
-                lru[si * WAYS + w] = static_cast<std::uint8_t>(w);
-            }
-        }
+        tag.fill(0);
+        valid.fill(0);
+        dirty.fill(0);
+        lru.fill(kInitialLruState);
     }
 
     // Extract set index from a block address
@@ -110,55 +171,37 @@ struct Level {
     }
 
     // Find the way with matching tag; return -1 if not found.
-    // All 8 WayEntry structs for one set are in 2 adjacent cache lines.
+    // WAYS is a compile-time constant so the compiler can fully unroll this.
     int find_way(int set_idx, std::uint64_t t) const {
         const std::size_t base = static_cast<std::size_t>(set_idx) * WAYS;
-        for (int w = 0; w < WAYS; ++w) {
-            if (ways[base + w].valid && ways[base + w].tag == t)
+        for (int w = 0; w < WAYS; ++w) {  // WAYS is constexpr → unrolls
+            if (valid[base + w] && tag[base + w] == t)
                 return w;
         }
         return -1;
     }
 
-    // Move way to MRU position in the per-set LRU array
+    // Move way to MRU position using O(1) table lookup
     void touch_mru(int set_idx, int way) {
-        std::size_t base = static_cast<std::size_t>(set_idx) * WAYS;
-        int pos = -1;
-        for (int i = 0; i < WAYS; ++i) {
-            if (lru[base + i] == static_cast<std::uint8_t>(way)) { pos = i; break; }
-        }
-        if (pos <= 0) return;
-        for (int i = pos; i > 0; --i) lru[base + i] = lru[base + i - 1];
-        lru[base] = static_cast<std::uint8_t>(way);
+        lru[set_idx] = kLru.next_state[lru[set_idx]][way];
     }
 
-    // Pick an invalid way if any, else return the LRU way
+    // Pick an invalid way if any, else return the LRU way using O(1) table lookup
     int victim_way(int set_idx) const {
         std::size_t base = static_cast<std::size_t>(set_idx) * WAYS;
         for (int w = 0; w < WAYS; ++w) {
-            if (!ways[base + w].valid) return w;
+            if (!valid[base + w]) return w;
         }
-        return static_cast<int>(lru[base + WAYS - 1]);
+        return kLru.victim[lru[set_idx]];
     }
 
-    // Install a line (valid/dirty/tag) and mark MRU
+    // Install a line (valid/dirty/tag) and mark MRU using O(1) table lookup
     void set_line(int set_idx, int way, bool v, std::uint8_t d, std::uint64_t t) {
         std::size_t base = static_cast<std::size_t>(set_idx) * WAYS;
-        ways[base + way].valid = v ? 1 : 0;
-        ways[base + way].dirty = d ? 1 : 0;
-        ways[base + way].tag = t;
-        // update MRU
-        int pos = -1;
-        for (int i = 0; i < WAYS; ++i) {
-            if (lru[base + i] == static_cast<std::uint8_t>(way)) { pos = i; break; }
-        }
-        if (pos > 0) {
-            for (int i = pos; i > 0; --i) lru[base + i] = lru[base + i - 1];
-            lru[base] = static_cast<std::uint8_t>(way);
-        } else if (pos == -1) {
-            for (int i = WAYS - 1; i > 0; --i) lru[base + i] = lru[base + i - 1];
-            lru[base] = static_cast<std::uint8_t>(way);
-        }
+        valid[base + way] = v ? 1 : 0;
+        dirty[base + way] = d ? 1 : 0;
+        tag[base + way] = t;
+        lru[set_idx] = kLru.next_state[lru[set_idx]][way];
     }
 };
 
@@ -211,7 +254,7 @@ public:
 
             if (l1_hit) {
                 l1_.touch_mru(s1, w1);
-                l1_.ways[static_cast<std::size_t>(s1) * L1::NUM_WAYS + w1].dirty |= wr;
+                l1_.dirty[static_cast<std::size_t>(s1) * L1::NUM_WAYS + w1] |= wr;
                 continue;
             }
 
@@ -226,31 +269,32 @@ public:
             } else {
                 int victim = l2_.victim_way(s2);
                 // Branchless dirty writeback check
-                const auto& vw = l2_.ways[static_cast<std::size_t>(s2) * L2::NUM_WAYS + victim];
-                st.dirty_writebacks += (vw.valid & vw.dirty);
+                st.dirty_writebacks += (l2_.valid[static_cast<std::size_t>(s2) * L2::NUM_WAYS + victim] &
+                                        l2_.dirty[static_cast<std::size_t>(s2) * L2::NUM_WAYS + victim]);
                 // install clean line
                 l2_.set_line(s2, victim, true, false, t2);
             }
 
             // §5.4 fill into L1 (write-allocate)
             int v1 = l1_.victim_way(s1);
-            const auto& l1_victim = l1_.ways[static_cast<std::size_t>(s1) * L1::NUM_WAYS + v1];
-            if (l1_victim.valid && l1_victim.dirty) {
+            if (l1_.valid[static_cast<std::size_t>(s1) * L1::NUM_WAYS + v1] &&
+                l1_.dirty[static_cast<std::size_t>(s1) * L1::NUM_WAYS + v1]) {
                 // Writing dirty L1 victim back to L2 (§5.5)
-                std::uint64_t bv = (l1_victim.tag << L1::INDEX_BITS) | static_cast<std::uint64_t>(s1);
+                std::uint64_t victim_tag = l1_.tag[static_cast<std::size_t>(s1) * L1::NUM_WAYS + v1];
+                std::uint64_t bv = (victim_tag << L1::INDEX_BITS) | static_cast<std::uint64_t>(s1);
                 int s2v = L2::set_of(bv);
                 std::uint64_t t2v = L2::tag_of(bv);
 
                 int wv = l2_.find_way(s2v, t2v);
                 if (wv >= 0) {
                     // set dirty on existing L2 line; do NOT touch LRU or counts
-                    l2_.ways[static_cast<std::size_t>(s2v) * L2::NUM_WAYS + wv].dirty = 1;
+                    l2_.dirty[static_cast<std::size_t>(s2v) * L2::NUM_WAYS + wv] = 1;
                 } else {
                     // install dirty into L2; may evict L2 victim -> memory
                     int vv = l2_.victim_way(s2v);
                     // Branchless dirty writeback check
-                    const auto& l2v = l2_.ways[static_cast<std::size_t>(s2v) * L2::NUM_WAYS + vv];
-                    st.dirty_writebacks += (l2v.valid & l2v.dirty);
+                    st.dirty_writebacks += (l2_.valid[static_cast<std::size_t>(s2v) * L2::NUM_WAYS + vv] &
+                                            l2_.dirty[static_cast<std::size_t>(s2v) * L2::NUM_WAYS + vv]);
                     l2_.set_line(s2v, vv, true, true, t2v);
                 }
             }
