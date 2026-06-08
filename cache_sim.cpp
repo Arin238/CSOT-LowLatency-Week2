@@ -20,12 +20,13 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <cstdlib>
+#include <array>
 #include <cstring>
 
 #ifdef CSOT_CHECK_ALLOCS
 #include <new>
 #include <iostream>
+#include <cstdlib>
 #ifdef __linux__
 #include <sys/prctl.h>
 #endif
@@ -57,33 +58,22 @@ namespace {
 constexpr int log2_of(int v) { int r = 0; while ((1 << r) < v) ++r; return r; }
 
 // ============================================================================
-// WayEntry — AoS per-way data, packed for cache locality.
-//
-// 16 bytes per entry → 8 ways per set = 128 bytes = exactly 2 cache lines.
-// When find_way probes a set, it touches at most 2 cache lines instead of
-// bouncing between tag[] and valid[] arrays that are 32 KiB apart (SoA).
-//
-// Bit flags in vd:
-//   bit 0 (0x01) = valid
-//   bit 1 (0x02) = dirty
+// WayEntry — per-way data packed together for cache-line locality.
+// When find_way scans 8 ways, all tag+valid+dirty data for one set lives
+// in 8 × 16 = 128 bytes = 2 cache lines, instead of bouncing between
+// separate arrays that are tens of KiB apart.
 // ============================================================================
-struct WayEntry {
-    std::uint64_t tag;     // 8 bytes
-    std::uint8_t  vd;      // 1 byte: bit 0 = valid, bit 1 = dirty
-    std::uint8_t  pad[7];  // pad to 16 bytes total
+struct alignas(16) WayEntry {
+    std::uint64_t tag;      // 8 bytes
+    std::uint8_t  valid;    // 1 byte
+    std::uint8_t  dirty;    // 1 byte
+    std::uint8_t  _pad[6];  // pad to 16 bytes for alignment
 };
-static_assert(sizeof(WayEntry) == 16, "WayEntry must be 16 bytes for cache-line packing");
-
-static constexpr std::uint8_t VD_VALID = 0x01;
-static constexpr std::uint8_t VD_DIRTY = 0x02;
-static constexpr std::uint8_t VD_BOTH  = VD_VALID | VD_DIRTY;
+static_assert(sizeof(WayEntry) == 16, "WayEntry must be exactly 16 bytes");
 
 // ============================================================================
-// Templatized Level — geometry is compile-time, data is heap-allocated.
-//
-// The Level object itself is just 2 pointers (16 bytes). The actual cache
-// data lives on the heap via aligned_alloc, so the BaselineCacheSim object
-// stays small and hot-path loads go straight to the data through the pointer.
+// Templatized Level — AoS layout for tag/valid/dirty, separate LRU array.
+// SETS and WAYS are compile-time constants for unrolling and constant folding.
 // ============================================================================
 template <int SETS, int WAYS>
 struct Level {
@@ -92,18 +82,16 @@ struct Level {
     static constexpr int INDEX_BITS = log2_of(SETS);
     static constexpr std::uint64_t INDEX_MASK = SETS - 1;
 
-    // The Level object = just 2 pointers (16 bytes on the stack/object)
-    WayEntry*     ways = nullptr;   // SETS * WAYS entries, AoS layout
-    std::uint8_t* lru  = nullptr;   // SETS * WAYS bytes for LRU ordering
+    // AoS: per-way data packed together (tag + valid + dirty in one struct)
+    // 8 ways × 16 bytes = 128 bytes per set = 2 cache lines per set
+    std::array<WayEntry, SETS * WAYS> ways{};
+
+    // LRU order kept separate — only touched on hits/fills, not during tag scan
+    std::array<std::uint8_t, SETS * WAYS> lru{};
 
     void init() {
-        // 64-byte aligned allocation for cache-line friendliness
-        ways = static_cast<WayEntry*>(
-            std::aligned_alloc(64, sizeof(WayEntry) * SETS * WAYS));
-        lru = static_cast<std::uint8_t*>(
-            std::aligned_alloc(64, sizeof(std::uint8_t) * SETS * WAYS));
-
-        std::memset(ways, 0, sizeof(WayEntry) * SETS * WAYS);
+        for (auto& w : ways) { w.tag = 0; w.valid = 0; w.dirty = 0; }
+        // Initialize LRU: way 0 = MRU, way WAYS-1 = LRU
         for (int si = 0; si < SETS; ++si) {
             for (int w = 0; w < WAYS; ++w) {
                 lru[si * WAYS + w] = static_cast<std::uint8_t>(w);
@@ -111,29 +99,22 @@ struct Level {
         }
     }
 
-    void destroy() {
-        std::free(ways);
-        std::free(lru);
-        ways = nullptr;
-        lru = nullptr;
-    }
-
-    // Extract set index from a block address (constexpr mask)
+    // Extract set index from a block address
     static constexpr int set_of(std::uint64_t block_addr) {
         return static_cast<int>(block_addr & INDEX_MASK);
     }
 
-    // Extract tag from a block address (constexpr shift)
+    // Extract tag from a block address
     static constexpr std::uint64_t tag_of(std::uint64_t block_addr) {
         return block_addr >> INDEX_BITS;
     }
 
     // Find the way with matching tag; return -1 if not found.
-    // 8 ways = 128 bytes = 2 cache lines. Compiler unrolls fully.
+    // All 8 WayEntry structs for one set are in 2 adjacent cache lines.
     int find_way(int set_idx, std::uint64_t t) const {
-        const WayEntry* base = ways + set_idx * WAYS;
+        const std::size_t base = static_cast<std::size_t>(set_idx) * WAYS;
         for (int w = 0; w < WAYS; ++w) {
-            if ((base[w].vd & VD_VALID) && base[w].tag == t)
+            if (ways[base + w].valid && ways[base + w].tag == t)
                 return w;
         }
         return -1;
@@ -141,44 +122,42 @@ struct Level {
 
     // Move way to MRU position in the per-set LRU array
     void touch_mru(int set_idx, int way) {
-        std::uint8_t* base = lru + set_idx * WAYS;
+        std::size_t base = static_cast<std::size_t>(set_idx) * WAYS;
         int pos = -1;
         for (int i = 0; i < WAYS; ++i) {
-            if (base[i] == static_cast<std::uint8_t>(way)) { pos = i; break; }
+            if (lru[base + i] == static_cast<std::uint8_t>(way)) { pos = i; break; }
         }
         if (pos <= 0) return;
-        for (int i = pos; i > 0; --i) base[i] = base[i - 1];
-        base[0] = static_cast<std::uint8_t>(way);
+        for (int i = pos; i > 0; --i) lru[base + i] = lru[base + i - 1];
+        lru[base] = static_cast<std::uint8_t>(way);
     }
 
     // Pick an invalid way if any, else return the LRU way
     int victim_way(int set_idx) const {
-        const WayEntry* wbase = ways + set_idx * WAYS;
+        std::size_t base = static_cast<std::size_t>(set_idx) * WAYS;
         for (int w = 0; w < WAYS; ++w) {
-            if (!(wbase[w].vd & VD_VALID)) return w;
+            if (!ways[base + w].valid) return w;
         }
-        return static_cast<int>(lru[set_idx * WAYS + WAYS - 1]);
+        return static_cast<int>(lru[base + WAYS - 1]);
     }
 
-    // Install a line and mark MRU.
-    // vd_flags: use VD_VALID, VD_DIRTY, VD_BOTH constants.
-    void set_line(int set_idx, int way, std::uint8_t vd_flags, std::uint64_t t) {
-        WayEntry& e = ways[set_idx * WAYS + way];
-        e.tag = t;
-        e.vd  = vd_flags;
-
+    // Install a line (valid/dirty/tag) and mark MRU
+    void set_line(int set_idx, int way, bool v, std::uint8_t d, std::uint64_t t) {
+        std::size_t base = static_cast<std::size_t>(set_idx) * WAYS;
+        ways[base + way].valid = v ? 1 : 0;
+        ways[base + way].dirty = d ? 1 : 0;
+        ways[base + way].tag = t;
         // update MRU
-        std::uint8_t* base = lru + set_idx * WAYS;
         int pos = -1;
         for (int i = 0; i < WAYS; ++i) {
-            if (base[i] == static_cast<std::uint8_t>(way)) { pos = i; break; }
+            if (lru[base + i] == static_cast<std::uint8_t>(way)) { pos = i; break; }
         }
         if (pos > 0) {
-            for (int i = pos; i > 0; --i) base[i] = base[i - 1];
-            base[0] = static_cast<std::uint8_t>(way);
+            for (int i = pos; i > 0; --i) lru[base + i] = lru[base + i - 1];
+            lru[base] = static_cast<std::uint8_t>(way);
         } else if (pos == -1) {
-            for (int i = WAYS - 1; i > 0; --i) base[i] = base[i - 1];
-            base[0] = static_cast<std::uint8_t>(way);
+            for (int i = WAYS - 1; i > 0; --i) lru[base + i] = lru[base + i - 1];
+            lru[base] = static_cast<std::uint8_t>(way);
         }
     }
 };
@@ -189,11 +168,6 @@ using L2 = Level<512, 8>;   // 256 KiB, 8-way, 512 sets
 
 class BaselineCacheSim final : public csot::CacheSim {
 public:
-    ~BaselineCacheSim() override {
-        l1_.destroy();
-        l2_.destroy();
-    }
-
     void on_init() override {
         l1_.init();
         l2_.init();
@@ -209,19 +183,14 @@ public:
 
         csot::CacheStats st{};
 
-        // Cache heap pointers locally so the compiler keeps them in registers
-        WayEntry* const     l1w   = l1_.ways;
-        std::uint8_t* const l1lru = l1_.lru;
-        WayEntry* const     l2w   = l2_.ways;
-        std::uint8_t* const l2lru = l2_.lru;
-
         for (std::size_t i = 0; i < n; ++i) {
-            const std::uint64_t addr = acc[i].address;
-            const std::uint8_t  wr   = acc[i].is_write;  // 0 or 1
+            const csot::MemAccess &a = acc[i];
+            const std::uint64_t addr = a.address;
+            const bool wr = (a.is_write != 0);
 
             // §5.1 count the access (branchless)
             st.writes += wr;
-            st.reads  += (wr ^ 1);
+            st.reads += !wr;
 
             // block address
             const std::uint64_t b = addr >> 6;
@@ -230,65 +199,64 @@ public:
             const int s1 = L1::set_of(b);
             const std::uint64_t t1 = L1::tag_of(b);
 
-            // §5.2 probe L1 (AoS: tag+vd on same cache line)
+            // L2 set/tag
+            const int s2 = L2::set_of(b);
+            const std::uint64_t t2 = L2::tag_of(b);
+
+            // §5.2 probe L1
             int w1 = l1_.find_way(s1, t1);
             bool l1_hit = (w1 >= 0);
-            st.l1_hits   += l1_hit;
+            st.l1_hits += l1_hit;
             st.l1_misses += !l1_hit;
 
             if (l1_hit) {
                 l1_.touch_mru(s1, w1);
-                // set dirty bit if write (branchless: wr << 1 = DIRTY_BIT when wr=1)
-                l1w[s1 * L1::NUM_WAYS + w1].vd |= (wr << 1);
+                l1_.ways[static_cast<std::size_t>(s1) * L1::NUM_WAYS + w1].dirty |= wr;
                 continue;
             }
-
-            // L2 set/tag — only computed on L1 miss (saves work on ~90% of accesses)
-            const int s2 = L2::set_of(b);
-            const std::uint64_t t2 = L2::tag_of(b);
 
             // §5.3 probe L2 (only on L1 miss)
             int w2 = l2_.find_way(s2, t2);
             bool l2_hit = (w2 >= 0);
-            st.l2_hits   += l2_hit;
+            st.l2_hits += l2_hit;
             st.l2_misses += !l2_hit;
 
             if (l2_hit) {
                 l2_.touch_mru(s2, w2);
             } else {
                 int victim = l2_.victim_way(s2);
-                // Branchless dirty writeback: (vd & VALID) & (vd >> 1) = 1 iff both valid+dirty
-                std::uint8_t vd = l2w[s2 * L2::NUM_WAYS + victim].vd;
-                st.dirty_writebacks += ((vd & 1) & (vd >> 1));
+                // Branchless dirty writeback check
+                const auto& vw = l2_.ways[static_cast<std::size_t>(s2) * L2::NUM_WAYS + victim];
+                st.dirty_writebacks += (vw.valid & vw.dirty);
                 // install clean line
-                l2_.set_line(s2, victim, VD_VALID, t2);
+                l2_.set_line(s2, victim, true, false, t2);
             }
 
             // §5.4 fill into L1 (write-allocate)
             int v1 = l1_.victim_way(s1);
-            std::uint8_t l1_vd = l1w[s1 * L1::NUM_WAYS + v1].vd;
-            if ((l1_vd & VD_BOTH) == VD_BOTH) {
+            const auto& l1_victim = l1_.ways[static_cast<std::size_t>(s1) * L1::NUM_WAYS + v1];
+            if (l1_victim.valid && l1_victim.dirty) {
                 // Writing dirty L1 victim back to L2 (§5.5)
-                std::uint64_t victim_tag = l1w[s1 * L1::NUM_WAYS + v1].tag;
-                std::uint64_t bv = (victim_tag << L1::INDEX_BITS) | static_cast<std::uint64_t>(s1);
+                std::uint64_t bv = (l1_victim.tag << L1::INDEX_BITS) | static_cast<std::uint64_t>(s1);
                 int s2v = L2::set_of(bv);
                 std::uint64_t t2v = L2::tag_of(bv);
 
                 int wv = l2_.find_way(s2v, t2v);
                 if (wv >= 0) {
                     // set dirty on existing L2 line; do NOT touch LRU or counts
-                    l2w[s2v * L2::NUM_WAYS + wv].vd |= VD_DIRTY;
+                    l2_.ways[static_cast<std::size_t>(s2v) * L2::NUM_WAYS + wv].dirty = 1;
                 } else {
                     // install dirty into L2; may evict L2 victim -> memory
                     int vv = l2_.victim_way(s2v);
-                    std::uint8_t vd = l2w[s2v * L2::NUM_WAYS + vv].vd;
-                    st.dirty_writebacks += ((vd & 1) & (vd >> 1));
-                    l2_.set_line(s2v, vv, VD_BOTH, t2v);
+                    // Branchless dirty writeback check
+                    const auto& l2v = l2_.ways[static_cast<std::size_t>(s2v) * L2::NUM_WAYS + vv];
+                    st.dirty_writebacks += (l2v.valid & l2v.dirty);
+                    l2_.set_line(s2v, vv, true, true, t2v);
                 }
             }
 
             // place the requested line into L1; dirty iff write
-            l1_.set_line(s1, v1, VD_VALID | (wr << 1), t1);
+            l1_.set_line(s1, v1, true, wr ? 1 : 0, t1);
         }
 
 #ifdef CSOT_CHECK_ALLOCS
