@@ -197,7 +197,7 @@ private:
     Level l2;
 
     // find the way index with matching tag in a Level; return -1 if not found
-    [[gnu::noinline]] inline static int find_way(const Level &L, int set_idx, uint64_t tag) {
+    [[gnu::always_inline]] inline static int find_way(const Level &L, int set_idx, uint64_t tag) {
         const std::size_t base = static_cast<std::size_t>(set_idx) * Level::WAYS;
         for (std::size_t w = 0; w < Level::WAYS; ++w) {
             if (L.valid[base + w] && L.tag[base + w] == tag) return static_cast<int>(w);
@@ -206,7 +206,7 @@ private:
     }
 
     // touch: move way to MRU in per-set lru array
-    [[gnu::noinline]] inline static void touch_mru(Level &L, int set_idx, int way) {
+    [[gnu::always_inline]] inline static void touch_mru(Level &L, int set_idx, int way) {
         std::size_t base = static_cast<std::size_t>(set_idx) * Level::WAYS;
         int pos = -1;
         for (std::size_t i = 0; i < Level::WAYS; ++i) if (L.lru[base + i] == static_cast<uint8_t>(way)) { pos = static_cast<int>(i); break; }
@@ -216,7 +216,7 @@ private:
     }
 
     // pick invalid way if any, else LRU way index
-    [[gnu::noinline]] inline static int victim_way(const Level &L, int set_idx) {
+    [[gnu::always_inline]] inline static int victim_way(const Level &L, int set_idx) {
         std::size_t base = static_cast<std::size_t>(set_idx) * Level::WAYS;
         for (std::size_t w = 0; w < Level::WAYS; ++w) if (!L.valid[base + w]) return static_cast<int>(w);
         return static_cast<int>(L.lru[base + Level::WAYS - 1]);
