@@ -130,7 +130,7 @@ public:
             if (w1 >= 0) {
                 ++st.l1_hits;
                 touch_mru(l1, s1, w1);
-                if (wr) l1.dirty[static_cast<std::size_t>(s1) * Level::WAYS + w1] = 1;
+                l1.dirty[static_cast<std::size_t>(s1) * Level::WAYS + w1] = wr;
                 continue; // done with this access
             }
             ++st.l1_misses;
