@@ -20,7 +20,7 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <vector>
+#include <array>
 #include <cstring>
 
 #ifdef CSOT_CHECK_ALLOCS
@@ -54,47 +54,110 @@ void operator delete(void* p, std::size_t) noexcept {
 
 namespace {
 
-// Geometry constants from CACHE_SPEC.md
-constexpr int LINE_SIZE = 64;
-constexpr int L1_SIZE = 32 * 1024;
-constexpr int L1_WAYS = 8;
-constexpr int L1_SETS = 64;
-constexpr int L1_INDEX_BITS = 6;
+// Compile-time helper: number of bits needed to index SETS
+constexpr int log2_of(int v) { int r = 0; while ((1 << r) < v) ++r; return r; }
 
-constexpr int L2_SIZE = 256 * 1024;
-constexpr int L2_WAYS = 8;
-constexpr int L2_SETS = 512;
-constexpr int L2_INDEX_BITS = 9;
-
-// SoA Level layout: flat arrays per field, plus per-set LRU order (MRU..LRU)
+// ============================================================================
+// Templatized Level — SETS, WAYS, INDEX_BITS are all compile-time constants.
+// The compiler stamps out fully specialized code for Level<64,8> (L1) and
+// Level<512,8> (L2) independently. Loop bounds are immediates, masks are
+// constants, and the 8-way scans can unroll or vectorize.
+// ============================================================================
+template <int SETS, int WAYS>
 struct Level {
-    static constexpr std::size_t WAYS = 8;
-    std::size_t sets = 0;
-    std::vector<std::uint64_t> tag;   // size = sets * WAYS
-    std::vector<uint8_t> valid;       // 0/1, size = sets * WAYS
-    std::vector<uint8_t> dirty;       // 0/1, size = sets * WAYS
-    std::vector<uint8_t> lru;         // per-set MRU..LRU order, size = sets * WAYS
+    static constexpr int INDEX_BITS = log2_of(SETS);
+    static constexpr std::uint64_t INDEX_MASK = SETS - 1;
 
-    void init(std::size_t s) {
-        sets = s;
-        tag.assign(s * WAYS, 0);
-        valid.assign(s * WAYS, 0);
-        dirty.assign(s * WAYS, 0);
-        lru.assign(s * WAYS, 0);
-        for (std::size_t si = 0; si < s; ++si) {
-            for (std::size_t w = 0; w < WAYS; ++w) {
-                lru[si * WAYS + w] = static_cast<uint8_t>(w); // MRU..LRU initial
+    // SoA flat arrays — std::array, no heap indirection on hot path
+    std::array<std::uint64_t, SETS * WAYS> tag{};
+    std::array<std::uint8_t,  SETS * WAYS> valid{};
+    std::array<std::uint8_t,  SETS * WAYS> dirty{};
+    std::array<std::uint8_t,  SETS * WAYS> lru{};
+
+    void init() {
+        tag.fill(0);
+        valid.fill(0);
+        dirty.fill(0);
+        // Initialize LRU: way 0 = MRU, way WAYS-1 = LRU
+        for (int si = 0; si < SETS; ++si) {
+            for (int w = 0; w < WAYS; ++w) {
+                lru[si * WAYS + w] = static_cast<std::uint8_t>(w);
             }
+        }
+    }
+
+    // Extract set index from a block address
+    static constexpr int set_of(std::uint64_t block_addr) {
+        return static_cast<int>(block_addr & INDEX_MASK);
+    }
+
+    // Extract tag from a block address
+    static constexpr std::uint64_t tag_of(std::uint64_t block_addr) {
+        return block_addr >> INDEX_BITS;
+    }
+
+    // Find the way with matching tag; return -1 if not found.
+    // WAYS is a compile-time constant so the compiler can fully unroll this.
+    int find_way(int set_idx, std::uint64_t t) const {
+        const std::size_t base = static_cast<std::size_t>(set_idx) * WAYS;
+        for (int w = 0; w < WAYS; ++w) {  // WAYS is constexpr → unrolls
+            if (valid[base + w] && tag[base + w] == t)
+                return w;
+        }
+        return -1;
+    }
+
+    // Move way to MRU position in the per-set LRU array
+    void touch_mru(int set_idx, int way) {
+        std::size_t base = static_cast<std::size_t>(set_idx) * WAYS;
+        int pos = -1;
+        for (int i = 0; i < WAYS; ++i) {
+            if (lru[base + i] == static_cast<std::uint8_t>(way)) { pos = i; break; }
+        }
+        if (pos <= 0) return;
+        for (int i = pos; i > 0; --i) lru[base + i] = lru[base + i - 1];
+        lru[base] = static_cast<std::uint8_t>(way);
+    }
+
+    // Pick an invalid way if any, else return the LRU way
+    int victim_way(int set_idx) const {
+        std::size_t base = static_cast<std::size_t>(set_idx) * WAYS;
+        for (int w = 0; w < WAYS; ++w) {
+            if (!valid[base + w]) return w;
+        }
+        return static_cast<int>(lru[base + WAYS - 1]);
+    }
+
+    // Install a line (valid/dirty/tag) and mark MRU
+    void set_line(int set_idx, int way, bool v, std::uint8_t d, std::uint64_t t) {
+        std::size_t base = static_cast<std::size_t>(set_idx) * WAYS;
+        valid[base + way] = v ? 1 : 0;
+        dirty[base + way] = d ? 1 : 0;
+        tag[base + way] = t;
+        // update MRU
+        int pos = -1;
+        for (int i = 0; i < WAYS; ++i) {
+            if (lru[base + i] == static_cast<std::uint8_t>(way)) { pos = i; break; }
+        }
+        if (pos > 0) {
+            for (int i = pos; i > 0; --i) lru[base + i] = lru[base + i - 1];
+            lru[base] = static_cast<std::uint8_t>(way);
+        } else if (pos == -1) {
+            for (int i = WAYS - 1; i > 0; --i) lru[base + i] = lru[base + i - 1];
+            lru[base] = static_cast<std::uint8_t>(way);
         }
     }
 };
 
+// Instantiate the two levels with their geometry from CACHE_SPEC.md
+using L1 = Level<64, 8>;    // 32 KiB, 8-way, 64 sets
+using L2 = Level<512, 8>;   // 256 KiB, 8-way, 512 sets
+
 class BaselineCacheSim final : public csot::CacheSim {
 public:
     void on_init() override {
-        // allocate and initialize L1 and L2 levels (SoA)
-        l1.init(L1_SETS);
-        l2.init(L2_SETS);
+        l1_.init();
+        l2_.init();
     }
 
     csot::CacheStats run(const csot::MemAccess* acc, std::size_t n) override {
@@ -108,78 +171,80 @@ public:
         csot::CacheStats st{};
 
         for (std::size_t i = 0; i < n; ++i) {
-            const csot::MemAccess &a = acc[i]; //ARIN- cache
-            const uint64_t addr = a.address; // ARIN- Gain Intuition
-            const bool wr = (a.is_write != 0); // ARIN- Gain Intuition
+            const csot::MemAccess &a = acc[i];
+            const std::uint64_t addr = a.address;
+            const bool wr = (a.is_write != 0);
 
             // §5.1 count the access (branchless)
             st.writes += wr;
             st.reads += !wr;
 
-            // block address and indices/tags
-            const uint64_t b = addr >> 6; // block address
+            // block address
+            const std::uint64_t b = addr >> 6;
 
-            const int s1 = static_cast<int>(b & (L1_SETS - 1));
-            const uint64_t t1 = b >> L1_INDEX_BITS; // b >> 6
+            // L1 set/tag — masks and shifts are compile-time constants
+            const int s1 = L1::set_of(b);
+            const std::uint64_t t1 = L1::tag_of(b);
 
-            const int s2 = static_cast<int>(b & (L2_SETS - 1));
-            const uint64_t t2 = b >> L2_INDEX_BITS; // b >> 9
+            // L2 set/tag
+            const int s2 = L2::set_of(b);
+            const std::uint64_t t2 = L2::tag_of(b);
 
             // §5.2 probe L1
-            int w1 = find_way(l1, s1, t1);
+            int w1 = l1_.find_way(s1, t1);
             bool l1_hit = (w1 >= 0);
             st.l1_hits += l1_hit;
             st.l1_misses += !l1_hit;
 
-            if (l1_hit) { // Let the CPU predict this! (Very fast)
-                touch_mru(l1, s1, w1);
-                l1.dirty[static_cast<std::size_t>(s1) * Level::WAYS + w1] |= wr;
-                continue; 
+            if (l1_hit) {
+                l1_.touch_mru(s1, w1);
+                l1_.dirty[static_cast<std::size_t>(s1) * L1::WAYS + w1] |= wr;
+                continue;
             }
 
             // §5.3 probe L2 (only on L1 miss)
-            int w2 = find_way(l2, s2, t2);
+            int w2 = l2_.find_way(s2, t2);
             bool l2_hit = (w2 >= 0);
             st.l2_hits += l2_hit;
             st.l2_misses += !l2_hit;
 
             if (l2_hit) {
-                touch_mru(l2, s2, w2);
+                l2_.touch_mru(s2, w2);
             } else {
-                int victim = victim_way(l2, s2);
+                int victim = l2_.victim_way(s2);
                 // Branchless dirty writeback check
-                st.dirty_writebacks += (l2.valid[static_cast<std::size_t>(s2) * Level::WAYS + victim] & 
-                                        l2.dirty[static_cast<std::size_t>(s2) * Level::WAYS + victim]);
+                st.dirty_writebacks += (l2_.valid[static_cast<std::size_t>(s2) * L2::WAYS + victim] &
+                                        l2_.dirty[static_cast<std::size_t>(s2) * L2::WAYS + victim]);
                 // install clean line
-                set_line(l2, s2, victim, true, false, t2);
+                l2_.set_line(s2, victim, true, false, t2);
             }
 
             // §5.4 fill into L1 (write-allocate)
-            int v1 = victim_way(l1, s1);
-            if (l1.valid[static_cast<std::size_t>(s1) * Level::WAYS + v1] &&
-                l1.dirty[static_cast<std::size_t>(s1) * Level::WAYS + v1]) {
+            int v1 = l1_.victim_way(s1);
+            if (l1_.valid[static_cast<std::size_t>(s1) * L1::WAYS + v1] &&
+                l1_.dirty[static_cast<std::size_t>(s1) * L1::WAYS + v1]) {
                 // Writing dirty L1 victim back to L2 (§5.5)
-                uint64_t victim_tag = l1.tag[static_cast<std::size_t>(s1) * Level::WAYS + v1];
-                uint64_t bv = (victim_tag << L1_INDEX_BITS) | static_cast<uint64_t>(s1);
-                int s2v = static_cast<int>(bv & (L2_SETS - 1));
-                uint64_t t2v = bv >> L2_INDEX_BITS;
+                std::uint64_t victim_tag = l1_.tag[static_cast<std::size_t>(s1) * L1::WAYS + v1];
+                std::uint64_t bv = (victim_tag << L1::INDEX_BITS) | static_cast<std::uint64_t>(s1);
+                int s2v = L2::set_of(bv);
+                std::uint64_t t2v = L2::tag_of(bv);
 
-                int wv = find_way(l2, s2v, t2v);
+                int wv = l2_.find_way(s2v, t2v);
                 if (wv >= 0) {
                     // set dirty on existing L2 line; do NOT touch LRU or counts
-                    l2.dirty[static_cast<std::size_t>(s2v) * Level::WAYS + wv] = 1;
+                    l2_.dirty[static_cast<std::size_t>(s2v) * L2::WAYS + wv] = 1;
                 } else {
                     // install dirty into L2; may evict L2 victim -> memory
-                    int vv = victim_way(l2, s2v);
+                    int vv = l2_.victim_way(s2v);
                     // Branchless dirty writeback check
-                    st.dirty_writebacks += (l2.valid[static_cast<std::size_t>(s2v) * Level::WAYS + vv] &
-                                            l2.dirty[static_cast<std::size_t>(s2v) * Level::WAYS + vv]);
-                    set_line(l2, s2v, vv, true, true, t2v);
+                    st.dirty_writebacks += (l2_.valid[static_cast<std::size_t>(s2v) * L2::WAYS + vv] &
+                                            l2_.dirty[static_cast<std::size_t>(s2v) * L2::WAYS + vv]);
+                    l2_.set_line(s2v, vv, true, true, t2v);
                 }
             }
 
             // place the requested line into L1; dirty iff write
-            set_line(l1, s1, v1, true, wr ? 1 : 0, t1);
+            l1_.set_line(s1, v1, true, wr ? 1 : 0, t1);
         }
 
 #ifdef CSOT_CHECK_ALLOCS
@@ -193,52 +258,8 @@ public:
     }
 
 private:
-    Level l1;
-    Level l2;
-
-    // find the way index with matching tag in a Level; return -1 if not found
-    static int find_way(const Level &L, int set_idx, uint64_t tag) {
-        const std::size_t base = static_cast<std::size_t>(set_idx) * Level::WAYS;
-        for (std::size_t w = 0; w < Level::WAYS; ++w) {
-            if (L.valid[base + w] && L.tag[base + w] == tag) return static_cast<int>(w);
-        }
-        return -1;
-    }
-
-    // touch: move way to MRU in per-set lru array
-    static void touch_mru(Level &L, int set_idx, int way) {
-        std::size_t base = static_cast<std::size_t>(set_idx) * Level::WAYS;
-        int pos = -1;
-        for (std::size_t i = 0; i < Level::WAYS; ++i) if (L.lru[base + i] == static_cast<uint8_t>(way)) { pos = static_cast<int>(i); break; }
-        if (pos <= 0) return;
-        for (int i = pos; i > 0; --i) L.lru[base + i] = L.lru[base + i - 1];
-        L.lru[base + 0] = static_cast<uint8_t>(way);
-    }
-
-    // pick invalid way if any, else LRU way index
-    static int victim_way(const Level &L, int set_idx) {
-        std::size_t base = static_cast<std::size_t>(set_idx) * Level::WAYS;
-        for (std::size_t w = 0; w < Level::WAYS; ++w) if (!L.valid[base + w]) return static_cast<int>(w);
-        return static_cast<int>(L.lru[base + Level::WAYS - 1]);
-    }
-
-    // set a line (valid/dirty/tag) and mark MRU for that way
-    static void set_line(Level &L, int set_idx, int way, bool valid, uint8_t dirty, uint64_t tag) {
-        std::size_t base = static_cast<std::size_t>(set_idx) * Level::WAYS;
-        L.valid[base + way] = valid ? 1 : 0;
-        L.dirty[base + way] = dirty ? 1 : 0;
-        L.tag[base + way] = tag;
-        // update MRU
-        int pos = -1;
-        for (std::size_t i = 0; i < Level::WAYS; ++i) if (L.lru[base + i] == static_cast<uint8_t>(way)) { pos = static_cast<int>(i); break; }
-        if (pos > 0) {
-            for (int i = pos; i > 0; --i) L.lru[base + i] = L.lru[base + i - 1];
-            L.lru[base + 0] = static_cast<uint8_t>(way);
-        } else if (pos == -1) {
-            for (int i = static_cast<int>(Level::WAYS) - 1; i > 0; --i) L.lru[base + i] = L.lru[base + i - 1];
-            L.lru[base + 0] = static_cast<uint8_t>(way);
-        }
-    }
+    L1 l1_;
+    L2 l2_;
 };
 
 } // namespace
