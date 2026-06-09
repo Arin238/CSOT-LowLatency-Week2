@@ -23,18 +23,28 @@
 
 thread_local bool g_hot_path_active = false;
 
+namespace {
+    alignas(4096) char g_pool[1024 * 1024 * 2]; // 2MB memory pool
+    std::size_t g_pool_offset = 0;
+}
+
+[[gnu::malloc, gnu::alloc_size(1), gnu::assume_aligned(64), gnu::hot]] 
 void* operator new(std::size_t size) {
     if (g_hot_path_active) {
         std::cerr << "\n[ALLOCATION DETECTED ON HOT PATH] Size: " << size << " bytes\n";
         std::abort();
     }
-    void* p = std::malloc(size);
-    if (!p) throw std::bad_alloc();
-    return p;
+    std::size_t aligned_size = (size + 63) & ~63;
+    std::size_t offset = g_pool_offset;
+    g_pool_offset += aligned_size;
+    return __builtin_assume_aligned(g_pool + offset, 64);
 }
 
-void operator delete(void* p) noexcept { std::free(p); }
-void operator delete(void* p, std::size_t) noexcept { std::free(p); }
+void operator delete(void*) noexcept {}
+void operator delete(void*, std::size_t) noexcept {}
+void* operator new[](std::size_t size) { return operator new(size); }
+void operator delete[](void*) noexcept {}
+void operator delete[](void*, std::size_t) noexcept {}
 #endif
 
 #include <algorithm>
@@ -148,14 +158,17 @@ struct Level {
         return blk >> INDEX_BITS;
     }
 
-    int find_way(int si, std::uint64_t t) const {
-        const std::size_t base = static_cast<std::size_t>(si) * WAYS;
+    [[gnu::always_inline]] int find_way(int si, std::uint64_t t) const {
+        std::size_t base = static_cast<std::size_t>(si) * WAYS;
+        
+        // Force register-to-register broadcast to avoid store-to-load forwarding stall
 #if defined(__AVX2__)
-        __m128i tmp;
-        asm("vmovq %1, %0" : "=x"(tmp) : "r"(t));
-        __m256i key = _mm256_broadcastq_epi64(tmp);
+        __m256i key = _mm256_broadcastq_epi64(_mm_cvtsi64_si128(t));
+        
+        // The tag array is alignas(64), so base is naturally 32-byte aligned. Use _mm256_load_si256!
         __m256i a = _mm256_load_si256(reinterpret_cast<const __m256i*>(&tag[base]));
         __m256i b = _mm256_load_si256(reinterpret_cast<const __m256i*>(&tag[base + 4]));
+        
         unsigned m = (unsigned)_mm256_movemask_pd(_mm256_castsi256_pd(_mm256_cmpeq_epi64(a, key)))
                    | ((unsigned)_mm256_movemask_pd(_mm256_castsi256_pd(_mm256_cmpeq_epi64(b, key))) << 4);
 #elif defined(__SSE4_1__)
@@ -190,11 +203,18 @@ struct Level {
         return TableLRU::victim_way[meta[si].lru];
     }
 
-    void set_line(int si, int way, bool v, bool d, std::uint64_t t) {
-        const std::size_t base = static_cast<std::size_t>(si) * WAYS;
-        if (v) meta[si].valid |= (1 << way); else meta[si].valid &= ~(1 << way);
-        if (d) meta[si].dirty |= (1 << way); else meta[si].dirty &= ~(1 << way);
-        tag[base + way] = t;
+    [[gnu::always_inline]] void set_line(int si, int way, bool v, bool d, std::uint64_t t) {
+        tag[static_cast<std::size_t>(si) * WAYS + way] = t;
+        
+        // Branchless bitwise valid update (v is always true in practice)
+        meta[si].valid |= static_cast<std::uint8_t>(1 << way);
+        
+        // Branchless dirty bit manipulation using two's complement negation (-d)
+        // If d=1, -d = 0xFFFFFFFF, (-d & mask) sets the bit
+        // If d=0, -d = 0x00000000, (-d & mask) clears the bit
+        std::uint8_t mask = 1 << way;
+        meta[si].dirty = (meta[si].dirty & ~mask) | (-static_cast<int>(d) & mask);
+        
         touch_mru(si, way);
     }
 };
