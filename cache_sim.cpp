@@ -1,5 +1,5 @@
 // ============================================================================
-//  cache_sim.cpp — final optimised version (Agner Fog compliant)
+//  cache_sim.cpp — final portable version (no consteval, runtime tables)
 // ============================================================================
 
 #include "cache_sim.hpp"
@@ -39,7 +39,81 @@ namespace {
 constexpr int log2_of(int v) { int r = 0; while ((1 << r) < v) ++r; return r; }
 
 // ============================================================================
-// Level template – SoA layout, per‑set LRU state stored as uint32_t (age‑based)
+// LRU state machine – Lehmer code (0…40319) for 8‑way permutations.
+// Tables are built once at runtime; hot path uses O(1) array lookups.
+// ============================================================================
+using Perm = std::array<std::uint8_t, 8>;
+
+static std::uint16_t encode_fast(const Perm& p) {
+    constexpr int kFact[7] = {5040, 720, 120, 24, 6, 2, 1};
+    std::uint8_t seen = 0;
+    std::uint16_t code = 0;
+    for (int i = 0; i < 7; ++i) {
+        // rank among remaining = (# values < p[i]) − (# of those already placed)
+        const int rank = p[i] - __builtin_popcount(seen & ((1u << p[i]) - 1u));
+        seen |= (1u << p[i]);
+        code += static_cast<std::uint16_t>(rank * kFact[i]);
+    }
+    return code;
+}
+
+static Perm decode_fast(std::uint16_t code) {
+    constexpr int kFact[8] = {5040, 720, 120, 24, 6, 2, 1, 1};
+    Perm p{};
+    std::uint8_t avail = 0xFF;          // bits 0-7 = elements {0..7} still available
+    for (int i = 0; i < 8; ++i) {
+        const int idx  = code / kFact[i];
+        code           %= kFact[i];
+        // idx-th set bit: clear idx lowest set bits, then ctz
+        std::uint8_t tmp = avail;
+        for (int k = 0; k < idx; ++k) tmp &= tmp - 1;
+        p[i]  = static_cast<std::uint8_t>(__builtin_ctz(tmp));
+        avail &= ~(1u << p[i]);
+    }
+    return p;
+}
+
+struct LruTables {
+    std::array<std::uint8_t, 40320> victim{};
+    std::array<std::array<std::uint16_t, 8>, 40320> next_state{};
+};
+
+static const LruTables* build_lru_tables() {
+    static LruTables tables;
+    static bool init = false;
+    if (!init) {
+        for (std::uint16_t state = 0; state < 40320; ++state) {
+            const Perm p = decode_fast(state);
+            tables.victim[state] = p[7];
+
+            // build inverse once per state — O(1) position lookup below
+            Perm inv{};
+            for (int i = 0; i < 8; ++i)
+                inv[p[i]] = static_cast<std::uint8_t>(i);
+
+            for (int w = 0; w < 8; ++w) {
+                Perm np = p;
+                const int pos = inv[w];                      // O(1), was O(8) scan
+                for (int i = pos; i > 0; --i) np[i] = np[i - 1];
+                np[0] = static_cast<std::uint8_t>(w);
+                tables.next_state[state][w] = encode_fast(np); // O(n), was O(n²)
+            }
+        }
+        init = true;
+    }
+    return &tables;
+}
+
+inline const LruTables* kLru = build_lru_tables();
+
+const std::uint16_t kInitialLruState = []() {
+    Perm id;
+    for (int i = 0; i < 8; ++i) id[i] = static_cast<std::uint8_t>(i);
+    return encode_fast(id);
+}();
+
+// ============================================================================
+// Level template – SoA layout, per‑set LRU state stored as single uint16_t
 // ============================================================================
 template <int SETS, int WAYS>
 struct Level {
@@ -49,9 +123,9 @@ struct Level {
     static constexpr std::uint64_t INDEX_MASK = SETS - 1;
 
     struct Meta {
-        std::uint8_t valid;   // bitmask: 1 = valid
-        std::uint8_t dirty;   // bitmask: 1 = dirty
-        std::uint32_t lru;    // 4 bits per way, 0 = most recent, 7 = least recent
+        std::uint8_t valid;
+        std::uint8_t dirty;
+        std::uint16_t lru;
     };
 
     alignas(64) std::array<std::uint64_t, SETS * WAYS> tag{};
@@ -62,11 +136,7 @@ struct Level {
         for (int i = 0; i < SETS; ++i) {
             meta[i].valid = 0;
             meta[i].dirty = 0;
-            // Initial LRU: each way has its index as age (0 = most recent, 7 = least recent)
-            std::uint32_t lru = 0;
-            for (int w = 0; w < WAYS; ++w)
-                lru |= static_cast<std::uint32_t>(w) << (w * 4);
-            meta[i].lru = lru;
+            meta[i].lru = kInitialLruState;
         }
     }
 
@@ -81,26 +151,24 @@ struct Level {
         const std::size_t base = static_cast<std::size_t>(si) * WAYS;
 #if defined(__AVX2__)
         __m256i key = _mm256_set1_epi64x(t);
-        // Aligned loads – tag[] is alignas(64) and each set starts at 64‑byte boundary
-        __m256i a = _mm256_load_si256(reinterpret_cast<const __m256i*>(&tag[base]));
-        __m256i b = _mm256_load_si256(reinterpret_cast<const __m256i*>(&tag[base + 4]));
-        unsigned m = (unsigned)_mm256_movemask_pd(_mm256_castsi256_pd(_mm256_cmpeq_epi64(a, key)))
-                   | ((unsigned)_mm256_movemask_pd(_mm256_castsi256_pd(_mm256_cmpeq_epi64(b, key))) << 4);
-        _mm256_zeroupper();   // Prevent AVX‑SSE transition penalty (Agner Fog §12.1)
+        __m256i a   = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&tag[base]));
+        __m256i b   = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&tag[base + 4]));
+        unsigned m  = unsigned(_mm256_movemask_pd(_mm256_castsi256_pd(_mm256_cmpeq_epi64(a, key))))
+                    | (unsigned(_mm256_movemask_pd(_mm256_castsi256_pd(_mm256_cmpeq_epi64(b, key)))) << 4);
 #elif defined(__SSE4_1__)
         __m128i key = _mm_set1_epi64x(t);
-        __m128i a = _mm_load_si128(reinterpret_cast<const __m128i*>(&tag[base + 0]));
-        __m128i b = _mm_load_si128(reinterpret_cast<const __m128i*>(&tag[base + 2]));
-        __m128i c = _mm_load_si128(reinterpret_cast<const __m128i*>(&tag[base + 4]));
-        __m128i d = _mm_load_si128(reinterpret_cast<const __m128i*>(&tag[base + 6]));
-        unsigned m = (unsigned)_mm_movemask_pd(_mm_castsi128_pd(_mm_cmpeq_epi64(a, key)))
-                   | ((unsigned)_mm_movemask_pd(_mm_castsi128_pd(_mm_cmpeq_epi64(b, key))) << 2)
-                   | ((unsigned)_mm_movemask_pd(_mm_castsi128_pd(_mm_cmpeq_epi64(c, key))) << 4)
-                   | ((unsigned)_mm_movemask_pd(_mm_castsi128_pd(_mm_cmpeq_epi64(d, key))) << 6);
+        __m128i a = _mm_loadu_si128(reinterpret_cast<const __m128i*>(&tag[base + 0]));
+        __m128i b = _mm_loadu_si128(reinterpret_cast<const __m128i*>(&tag[base + 2]));
+        __m128i c = _mm_loadu_si128(reinterpret_cast<const __m128i*>(&tag[base + 4]));
+        __m128i d = _mm_loadu_si128(reinterpret_cast<const __m128i*>(&tag[base + 6]));
+        unsigned m = unsigned(_mm_movemask_pd(_mm_castsi128_pd(_mm_cmpeq_epi64(a, key))))
+                   | (unsigned(_mm_movemask_pd(_mm_castsi128_pd(_mm_cmpeq_epi64(b, key)))) << 2)
+                   | (unsigned(_mm_movemask_pd(_mm_castsi128_pd(_mm_cmpeq_epi64(c, key)))) << 4)
+                   | (unsigned(_mm_movemask_pd(_mm_castsi128_pd(_mm_cmpeq_epi64(d, key)))) << 6);
 #else
         unsigned m = 0;
         for (int w = 0; w < WAYS; ++w) {
-            m |= static_cast<unsigned>(tag[base + w] == t) << w;
+            m |= unsigned(tag[base + w] == t) << w;
         }
 #endif
         m &= meta[si].valid;
@@ -108,32 +176,12 @@ struct Level {
     }
 
     void touch_mru(int si, int way) {
-        // Ages: 0 = most recent, 7 = least recent.
-        // Update: all other ages increase by 1 (saturating at 7), touched way becomes 0.
-        std::uint32_t lru = meta[si].lru;
-        std::uint32_t new_lru = 0;
-        // Unrolled loop over 8 ways – compiler will expand, no branch mispredictions.
-        for (int w = 0; w < WAYS; ++w) {
-            unsigned age = (lru >> (w * 4)) & 0xF;
-            if (w == way)
-                age = 0;
-            else if (age < 7)
-                ++age;
-            // else age stays 7
-            new_lru |= age << (w * 4);
-        }
-        meta[si].lru = new_lru;
+        meta[si].lru = kLru->next_state[meta[si].lru][way];
     }
 
     int victim_way(int si) const {
-        unsigned invalid = static_cast<unsigned>(~meta[si].valid) & 0xFF;
-        if (__builtin_expect(invalid, 0)) {
-            return __builtin_ctz(invalid);
-        }
-        // No invalid way – use LRU: find the way with age == 7
-        std::uint32_t lru = meta[si].lru;
-        unsigned victim_mask = (lru + 0x11111111) & 0x88888888;
-        return __builtin_ctz(victim_mask) >> 2;
+        unsigned invalid = static_cast<unsigned>(static_cast<std::uint8_t>(~meta[si].valid));
+        return invalid ? __builtin_ctz(invalid) : kLru->victim[meta[si].lru];
     }
 
     void set_line(int si, int way, bool v, bool d, std::uint64_t t) {
@@ -141,7 +189,7 @@ struct Level {
         if (v) meta[si].valid |= (1 << way); else meta[si].valid &= ~(1 << way);
         if (d) meta[si].dirty |= (1 << way); else meta[si].dirty &= ~(1 << way);
         tag[base + way] = t;
-        touch_mru(si, way);
+        meta[si].lru = kLru->next_state[meta[si].lru][way];
     }
 };
 
@@ -156,7 +204,7 @@ public:
         l2_.init();
     }
 
-    csot::CacheStats run(const csot::MemAccess* __restrict acc, std::size_t n) override {
+    csot::CacheStats run(const csot::MemAccess* acc, std::size_t n) override {
 #ifdef CSOT_CHECK_ALLOCS
         g_hot_path_active = true;
 #ifdef __linux__
@@ -167,8 +215,9 @@ public:
         csot::CacheStats st{};
 
         for (std::size_t i = 0; i < n; ++i) {
-            // Optional prefetch – modern CPUs often do better without (Agner Fog §9.11)
-            // __builtin_prefetch(&acc[i + 16], 0, 0);
+            // Prefetch ~16 elements ahead. 
+            // 0 = Read intention, 0 = No temporal locality (don't pollute L1/L2)
+            __builtin_prefetch(&acc[i + 16], 0, 0);
 
             const csot::MemAccess& a = acc[i];
             const bool wr = (a.is_write != 0);
@@ -187,7 +236,7 @@ public:
             st.l1_hits += l1_hit;
             st.l1_misses += !l1_hit;
 
-            if (__builtin_expect(l1_hit, 1)) {
+            if (l1_hit) {
                 l1_.touch_mru(s1, w1);
                 if (wr) l1_.meta[s1].dirty |= (1 << w1);
                 continue;
