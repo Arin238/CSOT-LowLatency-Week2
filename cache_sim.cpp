@@ -63,83 +63,6 @@ constexpr int log2_of(int v) { int r = 0; while ((1 << r) < v) ++r; return r; }
 // Level<512,8> (L2) independently. Loop bounds are immediates, masks are
 // constants, and the 8-way scans can unroll or vectorize.
 // ============================================================================
-// Compile-time LRU Table Generation (8! = 40320 states)
-// ============================================================================
-using Perm = std::array<std::uint8_t, 8>;
-
-consteval std::uint16_t encode_perm(const Perm& p) {
-    std::uint16_t code = 0;
-    int fact[8] = {1, 1, 2, 6, 24, 120, 720, 5040};
-    for (int i = 0; i < 7; ++i) {
-        int count = 0;
-        for (int j = i + 1; j < 8; ++j) {
-            if (p[j] < p[i]) count++;
-        }
-        code += count * fact[7 - i];
-    }
-    return code;
-}
-
-consteval Perm decode_perm(std::uint16_t code) {
-    Perm p{};
-    int fact[8] = {1, 1, 2, 6, 24, 120, 720, 5040};
-    std::uint8_t available[8] = {0, 1, 2, 3, 4, 5, 6, 7};
-    for (int i = 0; i < 8; ++i) {
-        int idx = code / fact[7 - i];
-        code %= fact[7 - i];
-        p[i] = available[idx];
-        for (int j = idx; j < 7 - i; ++j) {
-            available[j] = available[j + 1];
-        }
-    }
-    return p;
-}
-
-consteval Perm next_perm(Perm p, int way) {
-    int pos = -1;
-    for (int i = 0; i < 8; ++i) {
-        if (p[i] == way) {
-            pos = i;
-            break;
-        }
-    }
-    if (pos == -1) pos = 7;
-    for (int i = pos; i > 0; --i) {
-        p[i] = p[i - 1];
-    }
-    p[0] = static_cast<std::uint8_t>(way);
-    return p;
-}
-
-struct LruTables {
-    std::array<std::uint8_t, 40320> victim{};
-    std::array<std::array<std::uint16_t, 8>, 40320> next_state{};
-};
-
-consteval LruTables make_lru_tables() {
-    LruTables t{};
-    for (int i = 0; i < 40320; ++i) {
-        Perm p = decode_perm(static_cast<std::uint16_t>(i));
-        t.victim[i] = p[7];
-        for (int w = 0; w < 8; ++w) {
-            t.next_state[i][w] = encode_perm(next_perm(p, w));
-        }
-    }
-    return t;
-}
-
-inline constexpr LruTables kLru = make_lru_tables();
-
-consteval std::uint16_t initial_state() {
-    Perm p{};
-    for (int i = 0; i < 8; ++i) p[i] = static_cast<std::uint8_t>(i);
-    return encode_perm(p);
-}
-inline constexpr std::uint16_t kInitialLruState = initial_state();
-
-// ============================================================================
-// Templatized Level
-// ============================================================================
 template <int SETS, int WAYS>
 struct Level {
     static constexpr int NUM_SETS = SETS;
@@ -151,13 +74,18 @@ struct Level {
     std::array<std::uint64_t, SETS * WAYS> tag{};
     std::array<std::uint8_t,  SETS * WAYS> valid{};
     std::array<std::uint8_t,  SETS * WAYS> dirty{};
-    std::array<std::uint16_t, SETS> lru{}; // ONE uint16_t PER SET!
+    std::array<std::uint8_t,  SETS * WAYS> lru{};
 
     void init() {
         tag.fill(0);
         valid.fill(0);
         dirty.fill(0);
-        lru.fill(kInitialLruState);
+        // Initialize LRU: way 0 = MRU, way WAYS-1 = LRU
+        for (int si = 0; si < SETS; ++si) {
+            for (int w = 0; w < WAYS; ++w) {
+                lru[si * WAYS + w] = static_cast<std::uint8_t>(w);
+            }
+        }
     }
 
     // Extract set index from a block address
@@ -181,27 +109,45 @@ struct Level {
         return -1;
     }
 
-    // Move way to MRU position using O(1) table lookup
+    // Move way to MRU position in the per-set LRU array
     void touch_mru(int set_idx, int way) {
-        lru[set_idx] = kLru.next_state[lru[set_idx]][way];
+        std::size_t base = static_cast<std::size_t>(set_idx) * WAYS;
+        int pos = -1;
+        for (int i = 0; i < WAYS; ++i) {
+            if (lru[base + i] == static_cast<std::uint8_t>(way)) { pos = i; break; }
+        }
+        if (pos <= 0) return;
+        for (int i = pos; i > 0; --i) lru[base + i] = lru[base + i - 1];
+        lru[base] = static_cast<std::uint8_t>(way);
     }
 
-    // Pick an invalid way if any, else return the LRU way using O(1) table lookup
+    // Pick an invalid way if any, else return the LRU way
     int victim_way(int set_idx) const {
         std::size_t base = static_cast<std::size_t>(set_idx) * WAYS;
         for (int w = 0; w < WAYS; ++w) {
             if (!valid[base + w]) return w;
         }
-        return kLru.victim[lru[set_idx]];
+        return static_cast<int>(lru[base + WAYS - 1]);
     }
 
-    // Install a line (valid/dirty/tag) and mark MRU using O(1) table lookup
+    // Install a line (valid/dirty/tag) and mark MRU
     void set_line(int set_idx, int way, bool v, std::uint8_t d, std::uint64_t t) {
         std::size_t base = static_cast<std::size_t>(set_idx) * WAYS;
         valid[base + way] = v ? 1 : 0;
         dirty[base + way] = d ? 1 : 0;
         tag[base + way] = t;
-        lru[set_idx] = kLru.next_state[lru[set_idx]][way];
+        // update MRU
+        int pos = -1;
+        for (int i = 0; i < WAYS; ++i) {
+            if (lru[base + i] == static_cast<std::uint8_t>(way)) { pos = i; break; }
+        }
+        if (pos > 0) {
+            for (int i = pos; i > 0; --i) lru[base + i] = lru[base + i - 1];
+            lru[base] = static_cast<std::uint8_t>(way);
+        } else if (pos == -1) {
+            for (int i = WAYS - 1; i > 0; --i) lru[base + i] = lru[base + i - 1];
+            lru[base] = static_cast<std::uint8_t>(way);
+        }
     }
 };
 
