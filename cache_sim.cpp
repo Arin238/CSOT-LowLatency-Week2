@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <array>
 #include <cstring>
+#include <immintrin.h>
 
 #ifdef CSOT_CHECK_ALLOCS
 #include <new>
@@ -122,9 +123,9 @@ struct Level {
     static constexpr std::uint64_t INDEX_MASK = SETS - 1;
 
     alignas(64) std::array<std::uint64_t, SETS * WAYS> tag{};
-    alignas(64) std::array<std::uint8_t,  SETS * WAYS> valid{};
-    alignas(64) std::array<std::uint8_t,  SETS * WAYS> dirty{};
-    std::array<std::uint16_t, SETS> lru{};   // one LRU state per set
+    std::array<std::uint8_t, SETS> valid{};   // 8-bit mask per set
+    std::array<std::uint8_t, SETS> dirty{};   // 8-bit mask per set
+    std::array<std::uint16_t, SETS> lru{};
 
     void init() {
         tag.fill(0);
@@ -142,11 +143,30 @@ struct Level {
 
     int find_way(int si, std::uint64_t t) const {
         const std::size_t base = static_cast<std::size_t>(si) * WAYS;
-        unsigned hit = 0;
+#if defined(__AVX2__)
+        __m256i key = _mm256_set1_epi64x(t);
+        __m256i a   = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&tag[base]));
+        __m256i b   = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&tag[base + 4]));
+        unsigned m  = unsigned(_mm256_movemask_pd(_mm256_castsi256_pd(_mm256_cmpeq_epi64(a, key))))
+                    | (unsigned(_mm256_movemask_pd(_mm256_castsi256_pd(_mm256_cmpeq_epi64(b, key)))) << 4);
+#elif defined(__SSE4_1__)
+        __m128i key = _mm_set1_epi64x(t);
+        __m128i a = _mm_loadu_si128(reinterpret_cast<const __m128i*>(&tag[base + 0]));
+        __m128i b = _mm_loadu_si128(reinterpret_cast<const __m128i*>(&tag[base + 2]));
+        __m128i c = _mm_loadu_si128(reinterpret_cast<const __m128i*>(&tag[base + 4]));
+        __m128i d = _mm_loadu_si128(reinterpret_cast<const __m128i*>(&tag[base + 6]));
+        unsigned m = unsigned(_mm_movemask_pd(_mm_castsi128_pd(_mm_cmpeq_epi64(a, key))))
+                   | (unsigned(_mm_movemask_pd(_mm_castsi128_pd(_mm_cmpeq_epi64(b, key)))) << 2)
+                   | (unsigned(_mm_movemask_pd(_mm_castsi128_pd(_mm_cmpeq_epi64(c, key)))) << 4)
+                   | (unsigned(_mm_movemask_pd(_mm_castsi128_pd(_mm_cmpeq_epi64(d, key)))) << 6);
+#else
+        unsigned m = 0;
         for (int w = 0; w < WAYS; ++w) {
-            hit |= unsigned((tag[base + w] == t) & (valid[base + w] != 0)) << w;
+            m |= unsigned(tag[base + w] == t) << w;
         }
-        return hit ? __builtin_ctz(hit) : -1;
+#endif
+        m &= valid[si];
+        return m ? __builtin_ctz(m) : -1;
     }
 
     void touch_mru(int si, int way) {
@@ -154,18 +174,14 @@ struct Level {
     }
 
     int victim_way(int si) const {
-        const std::size_t base = static_cast<std::size_t>(si) * WAYS;
-        unsigned invalid = 0;
-        for (int w = 0; w < WAYS; ++w) {
-            invalid |= unsigned(valid[base + w] == 0) << w;
-        }
+        unsigned invalid = static_cast<unsigned>(static_cast<std::uint8_t>(~valid[si]));
         return invalid ? __builtin_ctz(invalid) : kLru->victim[lru[si]];
     }
 
     void set_line(int si, int way, bool v, bool d, std::uint64_t t) {
         const std::size_t base = static_cast<std::size_t>(si) * WAYS;
-        valid[base + way] = v ? 1 : 0;
-        dirty[base + way] = d ? 1 : 0;
+        if (v) valid[si] |= (1 << way); else valid[si] &= ~(1 << way);
+        if (d) dirty[si] |= (1 << way); else dirty[si] &= ~(1 << way);
         tag[base + way] = t;
         lru[si] = kLru->next_state[lru[si]][way];
     }
@@ -212,7 +228,7 @@ public:
 
             if (l1_hit) {
                 l1_.touch_mru(s1, w1);
-                l1_.dirty[static_cast<std::size_t>(s1) * L1::NUM_WAYS + w1] |= wr;
+                if (wr) l1_.dirty[s1] |= (1 << w1);
                 continue;
             }
 
@@ -226,27 +242,24 @@ public:
                 l2_.touch_mru(s2, w2);
             } else {
                 int victim = l2_.victim_way(s2);
-                const std::size_t idx = static_cast<std::size_t>(s2) * L2::NUM_WAYS + victim;
-                st.dirty_writebacks += (l2_.valid[idx] & l2_.dirty[idx]);
+                st.dirty_writebacks += ((l2_.valid[s2] & l2_.dirty[s2]) >> victim) & 1;
                 l2_.set_line(s2, victim, true, false, t2);
             }
 
             // Fill L1, possibly write back dirty L1 victim
             int v1 = l1_.victim_way(s1);
-            const std::size_t v1_idx = static_cast<std::size_t>(s1) * L1::NUM_WAYS + v1;
-            if (l1_.valid[v1_idx] && l1_.dirty[v1_idx]) {
-                std::uint64_t victim_tag = l1_.tag[v1_idx];
+            if (((l1_.valid[s1] & l1_.dirty[s1]) >> v1) & 1) {
+                std::uint64_t victim_tag = l1_.tag[static_cast<std::size_t>(s1) * L1::NUM_WAYS + v1];
                 std::uint64_t bv = (victim_tag << L1::INDEX_BITS) | static_cast<std::uint64_t>(s1);
                 int s2v = L2::set_of(bv);
                 std::uint64_t t2v = L2::tag_of(bv);
 
                 int wv = l2_.find_way(s2v, t2v);
                 if (wv >= 0) {
-                    l2_.dirty[static_cast<std::size_t>(s2v) * L2::NUM_WAYS + wv] = 1;
+                    l2_.dirty[s2v] |= (1 << wv);
                 } else {
                     int vv = l2_.victim_way(s2v);
-                    const std::size_t vv_idx = static_cast<std::size_t>(s2v) * L2::NUM_WAYS + vv;
-                    st.dirty_writebacks += (l2_.valid[vv_idx] & l2_.dirty[vv_idx]);
+                    st.dirty_writebacks += ((l2_.valid[s2v] & l2_.dirty[s2v]) >> vv) & 1;
                     l2_.set_line(s2v, vv, true, true, t2v);
                 }
             }
