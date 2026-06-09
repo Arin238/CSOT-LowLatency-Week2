@@ -43,7 +43,7 @@ constexpr int log2_of(int v) { int r = 0; while ((1 << r) < v) ++r; return r; }
 // ============================================================================
 using Perm = std::array<std::uint8_t, 8>;
 
-consteval std::uint16_t encode_perm(const Perm& p) {
+constexpr std::uint16_t encode_perm(const Perm& p) {
     std::uint16_t code = 0;
     const int fact[8] = {1, 1, 2, 6, 24, 120, 720, 5040};
     for (int i = 0; i < 7; ++i) {
@@ -55,7 +55,7 @@ consteval std::uint16_t encode_perm(const Perm& p) {
     return code;
 }
 
-consteval Perm decode_perm(std::uint16_t code) {
+constexpr Perm decode_perm(std::uint16_t code) {
     Perm p{};
     const int fact[8] = {1, 1, 2, 6, 24, 120, 720, 5040};
     std::uint8_t available[8] = {0, 1, 2, 3, 4, 5, 6, 7};
@@ -69,7 +69,7 @@ consteval Perm decode_perm(std::uint16_t code) {
     return p;
 }
 
-consteval Perm next_perm(const Perm& p, int way) {
+constexpr Perm next_perm(const Perm& p, int way) {
     Perm np = p;
     int pos = -1;
     for (int i = 0; i < 8; ++i)
@@ -86,7 +86,7 @@ struct LruTables {
     std::array<std::array<std::uint16_t, 8>, 40320> next_state{};
 };
 
-consteval LruTables build_lru_tables() {
+constexpr LruTables build_lru_tables() {
     LruTables tables{};
     for (std::uint16_t state = 0; state < 40320; ++state) {
         Perm p = decode_perm(state);
@@ -99,7 +99,7 @@ consteval LruTables build_lru_tables() {
 
 constexpr LruTables kLru = build_lru_tables();
 
-consteval std::uint16_t get_initial_state() {
+constexpr std::uint16_t get_initial_state() {
     Perm id{};
     for (int i = 0; i < 8; ++i) id[i] = static_cast<std::uint8_t>(i);
     return encode_perm(id);
