@@ -69,17 +69,29 @@ namespace TableLRU {
         return code;
     }
 
-    // Fast Lehmer decoding
+    // Fast Lehmer decoding with constant division (eliminates idivl)
     static void decode_fast(std::uint16_t code, std::uint8_t p[8]) {
         std::uint8_t avail = 0xFF;
-        for (int i = 0; i < 8; ++i) {
-            const int idx = code / fact[7 - i];
-            code %= fact[7 - i];
+        
+        auto extract = [&](int fact_val, int i) [[gnu::always_inline]] {
+            int idx = (fact_val > 1) ? (code / fact_val) : code;
+            if (fact_val > 1) code %= fact_val;
+            else code = 0;
+            
             std::uint8_t tmp = avail;
             for (int k = 0; k < idx; ++k) tmp &= tmp - 1;
             p[i] = static_cast<std::uint8_t>(__builtin_ctz(tmp));
             avail &= ~(1u << p[i]);
-        }
+        };
+
+        extract(5040, 0);
+        extract(720, 1);
+        extract(120, 2);
+        extract(24, 3);
+        extract(6, 4);
+        extract(2, 5);
+        extract(1, 6);
+        extract(1, 7);
     }
 
     alignas(4096) std::uint16_t next_state[40320][8];

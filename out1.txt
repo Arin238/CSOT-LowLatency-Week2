@@ -1,0 +1,853 @@
+ Percent |	Source code & Disassembly of cache_sim_runner for cycles:P (137 samples, percent: local period)
+---------------------------------------------------------------------------------------------------------------
+         :
+         :
+         :
+         : 3    Disassembly of section .text:
+         :
+         : 5    00000000000012b8 <(anonymous namespace)::BaselineCacheSim::handle_l1_miss(unsigned long, unsigned int)>:
+    1.54 :   12b8:   push   %r15
+    0.00 :   12ba:   mov    %rsi,%r11
+    0.00 :   12bd:   mov    %rdi,%r15
+    0.00 :   12c0:   lea    0x1140(%rdi),%rdi
+    0.00 :   12c7:   push   %r14
+    0.71 :   12c9:   shr    $0x9,%r11
+    0.00 :   12cd:   push   %r13
+    4.89 :   12cf:   push   %r12
+    1.54 :   12d1:   lea    0x10d28(%rip),%r12        # 12000 <TableLRU::next_state>
+    0.77 :   12d8:   push   %rbp
+    0.00 :   12d9:   push   %rbx
+    0.63 :   12da:   sub    $0x38,%rsp
+    0.70 :   12de:   mov    %rsi,(%rsp)
+    0.00 :   12e2:   mov    (%rsp),%r10d
+    2.84 :   12e6:   mov    %edx,0x24(%rsp)
+    0.00 :   12ea:   mov    (%rsp),%ebp
+    0.00 :   12ed:   mov    %r11,%rdx
+    0.77 :   12f0:   and    $0x1ff,%r10d
+    0.00 :   12f7:   mov    %rdi,0x8(%rsp)
+    0.00 :   12fc:   mov    %r10d,%esi
+    1.51 :   12ff:   and    $0x3f,%ebp
+    2.13 :   1302:   call   126c <(anonymous namespace)::Level<512, 8>::find_way(int, unsigned long) const>
+    0.00 :   1307:   movslq %r10d,%rcx
+    0.00 :   130a:   test   %eax,%eax
+    1.43 :   130c:   js     1337 <(anonymous namespace)::BaselineCacheSim::handle_l1_miss(unsigned long, unsigned int)+0x7f>
+    0.00 :   130e:   movzwl 0x9142(%r15,%rcx,4),%r14d
+    0.00 :   1317:   cltq
+    0.57 :   1319:   movl   $0x1,0x20(%rsp)
+    0.77 :   1321:   xor    %ebx,%ebx
+    0.00 :   1323:   lea    (%rax,%r14,8),%r10
+    2.23 :   1327:   mov    (%r12,%r10,2),%r11w
+    0.77 :   132c:   mov    %r11w,0x9142(%r15,%rcx,4)
+    0.00 :   1335:   jmp    1391 <(anonymous namespace)::BaselineCacheSim::handle_l1_miss(unsigned long, unsigned int)+0xd9>
+    0.00 :   1337:   mov    0x9140(%r15,%rcx,4),%bl
+    0.00 :   133f:   mov    %ebx,%eax
+    0.00 :   1341:   not    %eax
+    2.16 :   1343:   movzbl %al,%edx
+    0.00 :   1346:   tzcnt  %edx,%edx
+    0.00 :   134a:   test   %al,%al
+    0.00 :   134c:   jne    1363 <(anonymous namespace)::BaselineCacheSim::handle_l1_miss(unsigned long, unsigned int)+0xab>
+    0.00 :   134e:   movzwl 0x9142(%r15,%rcx,4),%esi
+    3.08 :   1357:   lea    0x6ca2(%rip),%r8        # 8000 <TableLRU::victim_way>
+    0.00 :   135e:   movzbl (%r8,%rsi,1),%edx
+    0.00 :   1363:   mov    0x8(%rsp),%rdi
+    0.00 :   1368:   mov    %r11,%r8
+    2.85 :   136b:   mov    %r10d,%esi
+    0.00 :   136e:   xor    %r13d,%r13d
+    0.00 :   1371:   and    0x9141(%r15,%rcx,4),%bl
+    0.00 :   1379:   xor    %ecx,%ecx
+    4.31 :   137b:   movzbl %bl,%r9d
+    0.00 :   137f:   sarx   %edx,%r9d,%ebx
+    0.00 :   1384:   call   1200 <(anonymous namespace)::Level<512, 8>::set_line(int, int, bool, bool, unsigned long) [clone .constprop.0]>
+    0.00 :   1389:   mov    %r13d,0x20(%rsp)
+    1.38 :   138e:   and    $0x1,%ebx
+    0.00 :   1391:   movslq %ebp,%rdi
+    0.00 :   1394:   lea    (%r15,%rdi,4),%r13
+    0.00 :   1398:   mov    0x1040(%r13),%bpl
+    1.54 :   139f:   mov    %ebp,%ecx
+    0.00 :   13a1:   not    %ecx
+    0.00 :   13a3:   movzbl %cl,%eax
+    0.00 :   13a6:   tzcnt  %eax,%r11d
+    2.90 :   13ab:   test   %cl,%cl
+    0.00 :   13ad:   jne    13c3 <(anonymous namespace)::BaselineCacheSim::handle_l1_miss(unsigned long, unsigned int)+0x10b>
+    0.77 :   13af:   movzwl 0x1042(%r13),%edx
+    0.00 :   13b7:   lea    0x6c42(%rip),%rsi        # 8000 <TableLRU::victim_way>
+    1.54 :   13be:   movzbl (%rsi,%rdx,1),%r11d
+    3.70 :   13c3:   mov    0x1041(%r13),%r14b
+    0.00 :   13ca:   movslq %r11d,%r8
+    0.00 :   13cd:   lea    (%r8,%rdi,8),%r9
+    1.40 :   13d1:   mov    %r8,0x18(%rsp)
+    2.21 :   13d6:   mov    %r14d,%r10d
+    0.00 :   13d9:   mov    %r9,0x10(%rsp)
+    0.00 :   13de:   and    %ebp,%r10d
+    0.77 :   13e1:   movzbl %r10b,%ecx
+    0.00 :   13e5:   bt     %r11d,%ecx
+    0.00 :   13e9:   jae    14a8 <(anonymous namespace)::BaselineCacheSim::handle_l1_miss(unsigned long, unsigned int)+0x1f0>
+    0.00 :   13ef:   mov    0x10(%rsp),%rax
+    0.00 :   13f4:   mov    0x40(%r15,%rax,8),%r10
+    0.00 :   13f9:   mov    %r10,0x28(%rsp)
+    0.00 :   13fe:   shl    $0x6,%r10
+    0.00 :   1402:   or     %rdi,%r10
+    0.00 :   1405:   mov    0x8(%rsp),%rdi
+    2.10 :   140a:   mov    %r10d,%r9d
+    0.65 :   140d:   shr    $0x9,%r10
+    0.00 :   1411:   and    $0x1ff,%r9d
+    0.00 :   1418:   mov    %r10,%rdx
+    0.00 :   141b:   mov    %r9d,%esi
+    0.75 :   141e:   call   126c <(anonymous namespace)::Level<512, 8>::find_way(int, unsigned long) const>
+    0.00 :   1423:   movslq %r9d,%rsi
+    0.64 :   1426:   mov    0x9141(%r15,%rsi,4),%dil
+    0.00 :   142e:   test   %eax,%eax
+    0.00 :   1430:   js     144a <(anonymous namespace)::BaselineCacheSim::handle_l1_miss(unsigned long, unsigned int)+0x192>
+    0.00 :   1432:   mov    $0x1,%r9d
+    0.00 :   1438:   shlx   %eax,%r9d,%r10d
+    3.07 :   143d:   or     %edi,%r10d
+    1.39 :   1440:   mov    %r10b,0x9141(%r15,%rsi,4)
+    1.54 :   1448:   jmp    14a8 <(anonymous namespace)::BaselineCacheSim::handle_l1_miss(unsigned long, unsigned int)+0x1f0>
+    0.00 :   144a:   mov    0x9140(%r15,%rsi,4),%al
+    0.00 :   1452:   mov    %eax,%r8d
+    0.00 :   1455:   not    %r8d
+    0.00 :   1458:   movzbl %r8b,%ecx
+    0.00 :   145c:   tzcnt  %ecx,%edx
+    0.00 :   1460:   test   %r8b,%r8b
+    0.00 :   1463:   jne    1479 <(anonymous namespace)::BaselineCacheSim::handle_l1_miss(unsigned long, unsigned int)+0x1c1>
+    0.00 :   1465:   movzwl 0x9142(%r15,%rsi,4),%edx
+    0.00 :   146e:   lea    0x6b8b(%rip),%rsi        # 8000 <TableLRU::victim_way>
+    0.00 :   1475:   movzbl (%rsi,%rdx,1),%edx
+    0.00 :   1479:   and    %edi,%eax
+    0.00 :   147b:   mov    %r11d,0x28(%rsp)
+    0.00 :   1480:   mov    %r10,%r8
+    0.00 :   1483:   mov    $0x1,%ecx
+    0.00 :   1488:   movzbl %al,%r11d
+    0.00 :   148c:   mov    %r9d,%esi
+    0.00 :   148f:   sarx   %edx,%r11d,%edi
+    0.00 :   1494:   and    $0x1,%edi
+    0.00 :   1497:   add    %edi,%ebx
+    0.00 :   1499:   mov    0x8(%rsp),%rdi
+    0.00 :   149e:   call   1200 <(anonymous namespace)::Level<512, 8>::set_line(int, int, bool, bool, unsigned long) [clone .constprop.0]>
+    0.00 :   14a3:   mov    0x28(%rsp),%r11d
+    0.00 :   14a8:   vmovd  0x20(%rsp),%xmm1
+    0.00 :   14ae:   mov    $0x1,%eax
+    2.03 :   14b3:   shlx   %r11d,%eax,%r8d
+    0.00 :   14b8:   or     %r8d,%ebp
+    0.00 :   14bb:   vpinsrd $0x1,%ebx,%xmm1,%xmm0
+    0.76 :   14c1:   mov    (%rsp),%rbx
+    0.00 :   14c5:   mov    %bpl,0x1040(%r13)
+    0.00 :   14cc:   andn   %r14d,%r8d,%ebp
+    1.54 :   14d1:   shr    $0x6,%rbx
+    0.76 :   14d5:   cmpl   $0x0,0x24(%rsp)
+    1.51 :   14da:   je     14e2 <(anonymous namespace)::BaselineCacheSim::handle_l1_miss(unsigned long, unsigned int)+0x22a>
+    0.00 :   14dc:   mov    %r14d,%ebp
+    0.65 :   14df:   or     %r8d,%ebp
+    0.77 :   14e2:   mov    0x10(%rsp),%r14
+    0.77 :   14e7:   mov    0x18(%rsp),%rcx
+    3.70 :   14ec:   vmovq  %xmm0,%rax
+    0.00 :   14f1:   mov    %bpl,0x1041(%r13)
+    1.34 :   14f8:   mov    %rbx,0x40(%r15,%r14,8)
+    0.00 :   14fd:   movzwl 0x1042(%r13),%r15d
+    2.83 :   1505:   lea    (%rcx,%r15,8),%rdx
+    0.76 :   1509:   movzwl (%r12,%rdx,2),%esi
+    1.39 :   150e:   lea    (%rcx,%rsi,8),%rdi
+    0.74 :   1512:   mov    %si,0x1042(%r13)
+   13.48 :   151a:   mov    (%r12,%rdi,2),%r12w
+    0.00 :   151f:   mov    %r12w,0x1042(%r13)
+    0.76 :   1527:   add    $0x38,%rsp
+    0.00 :   152b:   pop    %rbx
+    0.77 :   152c:   pop    %rbp
+    0.00 :   152d:   pop    %r12
+    0.00 :   152f:   pop    %r13
+    0.00 :   1531:   pop    %r14
+    0.74 :   1533:   pop    %r15
+    2.12 :   1535:   ret
+ Percent |	Source code & Disassembly of cache_sim_runner for cycles:P (90 samples, percent: local period)
+--------------------------------------------------------------------------------------------------------------
+         :
+         :
+         :
+         : 3    Disassembly of section .text:
+         :
+         : 5    0000000000001880 <(anonymous namespace)::BaselineCacheSim::run(csot::MemAccess const*, unsigned long)>:
+    0.00 :   1880:   endbr64
+    0.00 :   1884:   push   %rbp
+    0.00 :   1885:   mov    %rdi,%r9
+    0.00 :   1888:   mov    %rcx,%r8
+    0.00 :   188b:   mov    %rsp,%rbp
+    0.00 :   188e:   push   %r15
+    0.00 :   1890:   mov    %rcx,%r15
+    0.00 :   1893:   push   %r14
+    0.00 :   1895:   shl    $0x4,%r15
+    0.00 :   1899:   push   %r13
+    0.00 :   189b:   add    %rdx,%r15
+    0.00 :   189e:   push   %r12
+    0.00 :   18a0:   push   %rbx
+    0.00 :   18a1:   and    $0xffffffffffffffe0,%rsp
+    0.00 :   18a5:   sub    $0x20,%rsp
+    0.00 :   18a9:   cmp    %r15,%rdx
+    0.00 :   18ac:   je     1a00 <(anonymous namespace)::BaselineCacheSim::run(csot::MemAccess const*, unsigned long)+0x180>
+    0.00 :   18b2:   mov    %rsi,%r12
+    0.00 :   18b5:   mov    %rdx,%rbx
+    0.00 :   18b8:   xor    %r10d,%r10d
+    0.00 :   18bb:   xor    %r13d,%r13d
+    0.00 :   18be:   movq   $0x0,0x18(%rsp)
+    0.00 :   18c7:   xor    %r14d,%r14d
+    0.00 :   18ca:   lea    0x1072f(%rip),%rcx        # 12000 <TableLRU::next_state>
+    0.00 :   18d1:   data16 cs nopw 0x0(%rax,%rax,1)
+    0.00 :   18dc:   data16 cs nopw 0x0(%rax,%rax,1)
+    0.00 :   18e7:   data16 cs nopw 0x0(%rax,%rax,1)
+    0.00 :   18f2:   data16 cs nopw 0x0(%rax,%rax,1)
+    0.00 :   18fd:   nopl   (%rax)
+    5.63 :   1900:   mov    (%rbx),%r11
+    4.39 :   1903:   movzbl 0x8(%rbx),%esi
+    3.51 :   1907:   mov    %r11,%rdi
+    1.17 :   190a:   shr    $0xc,%r11
+    0.00 :   190e:   mov    %rsi,%rdx
+    4.63 :   1911:   add    %rsi,%r14
+    6.33 :   1914:   shr    $0x6,%rdi
+    0.00 :   1918:   mov    %rdi,%rax
+    1.05 :   191b:   and    $0x3f,%eax
+    2.22 :   191e:   vmovq  %r11,%xmm0
+   11.09 :   1923:   mov    %rax,%r11
+    0.00 :   1926:   vpbroadcastq %xmm0,%ymm2
+    0.00 :   192b:   shl    $0x6,%r11
+   18.74 :   192f:   vpcmpeqq 0x60(%r12,%r11,1),%ymm2,%ymm5
+    3.32 :   1936:   vpcmpeqq 0x40(%r12,%r11,1),%ymm2,%ymm4
+    0.87 :   193d:   vmovmskpd %ymm5,%r11d
+    4.26 :   1941:   vmovmskpd %ymm4,%esi
+    1.14 :   1945:   shl    $0x4,%r11d
+    0.00 :   1949:   or     %esi,%r11d
+    2.29 :   194c:   lea    (%r12,%rax,4),%rsi
+    3.21 :   1950:   movzbl 0x1040(%rsi),%eax
+    0.00 :   1957:   and    %r11d,%eax
+    1.17 :   195a:   je     1540 <(anonymous namespace)::BaselineCacheSim::run(csot::MemAccess const*, unsigned long) [clone .cold]>
+    0.00 :   1960:   movzwl 0x1042(%rsi),%r11d
+    1.17 :   1968:   xor    %edi,%edi
+    3.49 :   196a:   add    $0x10,%rbx
+    0.00 :   196e:   inc    %r13
+    1.98 :   1971:   tzcnt  %eax,%edi
+    1.16 :   1975:   mov    %rdi,%rax
+    5.81 :   1978:   lea    (%rdi,%r11,8),%rdi
+    9.19 :   197c:   movzwl (%rcx,%rdi,2),%r11d
+    1.17 :   1981:   shlx   %eax,%edx,%edx
+    0.00 :   1986:   or     %dl,0x1041(%rsi)
+    1.03 :   198c:   mov    %r11w,0x1042(%rsi)
+    0.00 :   1994:   cmp    %rbx,%r15
+    0.00 :   1997:   jne    1900 <(anonymous namespace)::BaselineCacheSim::run(csot::MemAccess const*, unsigned long)+0x80>
+    0.00 :   199d:   mov    0x18(%rsp),%r12
+    0.00 :   19a2:   mov    %r8,%r15
+    0.00 :   19a5:   sub    %r13,%r8
+    0.00 :   19a8:   sub    %r14,%r15
+    0.00 :   19ab:   mov    %r8,%rax
+    0.00 :   19ae:   vmovq  %r15,%xmm1
+    0.00 :   19b3:   sub    %r12,%rax
+    0.00 :   19b6:   vmovq  %r12,%xmm3
+    0.00 :   19bb:   vmovq  %r13,%xmm6
+    0.00 :   19c0:   vpinsrq $0x1,%r14,%xmm1,%xmm8
+    0.00 :   19c6:   mov    %r10,0x30(%r9)
+    0.00 :   19ca:   vpinsrq $0x1,%rax,%xmm3,%xmm10
+    0.00 :   19d0:   vpinsrq $0x1,%r8,%xmm6,%xmm7
+    0.00 :   19d6:   vmovdqu %xmm10,0x20(%r9)
+    0.00 :   19dc:   mov    %r9,%rax
+    0.00 :   19df:   vinserti128 $0x1,%xmm7,%ymm8,%ymm9
+    0.00 :   19e5:   vmovdqu %ymm9,(%r9)
+    0.00 :   19ea:   vzeroupper
+    0.00 :   19ed:   lea    -0x28(%rbp),%rsp
+    0.00 :   19f1:   pop    %rbx
+    0.00 :   19f2:   pop    %r12
+    0.00 :   19f4:   pop    %r13
+    0.00 :   19f6:   pop    %r14
+    0.00 :   19f8:   pop    %r15
+    0.00 :   19fa:   pop    %rbp
+    0.00 :   19fb:   ret
+    0.00 :   19fc:   nopl   0x0(%rax)
+    0.00 :   1a00:   mov    %rcx,%rax
+    0.00 :   1a03:   vmovq  %rcx,%xmm1
+    0.00 :   1a08:   xor    %r10d,%r10d
+    0.00 :   1a0b:   xor    %r13d,%r13d
+    0.00 :   1a0e:   movq   $0x0,0x18(%rsp)
+    0.00 :   1a17:   xor    %r14d,%r14d
+    0.00 :   1a1a:   vmovq  0x18(%rsp),%xmm3
+    0.00 :   1a20:   jmp    19bb <(anonymous namespace)::BaselineCacheSim::run(csot::MemAccess const*, unsigned long)+0x13b>
+ Percent |	Source code & Disassembly of cache_sim_runner for cycles:P (43 samples, percent: local period)
+--------------------------------------------------------------------------------------------------------------
+         :
+         :
+         :
+         : 3    Disassembly of section .text:
+         :
+         : 5    0000000000001540 <(anonymous namespace)::BaselineCacheSim::run(csot::MemAccess const*, unsigned long) [clone .cold]>:
+    2.43 :   1540:   mov    %r8,(%rsp)
+    2.41 :   1544:   mov    %rdi,%rsi
+   15.97 :   1547:   mov    %r12,%rdi
+    0.00 :   154a:   mov    %r9,0x8(%rsp)
+    2.32 :   154f:   mov    %r10,0x10(%rsp)
+   21.37 :   1554:   vzeroupper
+    2.43 :   1557:   call   12b8 <(anonymous namespace)::BaselineCacheSim::handle_l1_miss(unsigned long, unsigned int)>
+    4.43 :   155c:   add    $0x10,%rbx
+    4.54 :   1560:   mov    (%rsp),%r8
+   19.08 :   1564:   mov    0x10(%rsp),%r10
+    0.00 :   1569:   mov    %eax,%edx
+    0.00 :   156b:   shr    $0x20,%rax
+    6.48 :   156f:   add    %rdx,0x18(%rsp)
+    0.00 :   1574:   mov    0x8(%rsp),%r9
+    0.00 :   1579:   add    %rax,%r10
+    8.88 :   157c:   cmp    %rbx,%r15
+    0.00 :   157f:   je     199d <(anonymous namespace)::BaselineCacheSim::run(csot::MemAccess const*, unsigned long)+0x11d>
+    7.26 :   1585:   lea    0x10a74(%rip),%rcx        # 12000 <TableLRU::next_state>
+    2.41 :   158c:   jmp    1900 <(anonymous namespace)::BaselineCacheSim::run(csot::MemAccess const*, unsigned long)+0x80>
+ Percent |	Source code & Disassembly of cache_sim_runner for cycles:P (44 samples, percent: local period)
+--------------------------------------------------------------------------------------------------------------
+         :
+         :
+         :
+         : 3    Disassembly of section .text:
+         :
+         : 5    000000000000126c <(anonymous namespace)::Level<512, 8>::find_way(int, unsigned long) const>:
+    0.00 :   126c:   movslq %esi,%rsi
+    8.66 :   126f:   or     $0xffffffff,%ecx
+    0.00 :   1272:   mov    %rsi,%rax
+    1.82 :   1275:   shl    $0x6,%rax
+    2.40 :   1279:   add    %rdi,%rax
+    4.88 :   127c:   movzbl 0x8000(%rdi,%rsi,4),%edi
+    0.00 :   1284:   vmovq  %rdx,%xmm0
+    6.88 :   1289:   vpbroadcastq %xmm0,%ymm2
+    4.58 :   128e:   vpcmpeqq 0x20(%rax),%ymm2,%ymm3
+    1.95 :   1294:   vpcmpeqq (%rax),%ymm2,%ymm1
+    7.23 :   1299:   vmovmskpd %ymm3,%r8d
+    9.70 :   129d:   vmovmskpd %ymm1,%edx
+    2.43 :   12a1:   shl    $0x4,%r8d
+    6.97 :   12a5:   or     %edx,%r8d
+    0.00 :   12a8:   and    %r8d,%edi
+    8.86 :   12ab:   je     12b1 <(anonymous namespace)::Level<512, 8>::find_way(int, unsigned long) const+0x45>
+    4.48 :   12ad:   tzcnt  %edi,%ecx
+    4.74 :   12b1:   mov    %ecx,%eax
+   13.24 :   12b3:   vzeroupper
+   11.18 :   12b6:   ret
+ Percent |	Source code & Disassembly of cache_sim_runner for cycles:P (36 samples, percent: local period)
+--------------------------------------------------------------------------------------------------------------
+         :
+         :
+         :
+         : 3    Disassembly of section .text:
+         :
+         : 5    0000000000001200 <(anonymous namespace)::Level<512, 8>::set_line(int, int, bool, bool, unsigned long) [clone .constprop.0]>:
+    4.50 :   1200:   movslq %esi,%rsi
+    0.00 :   1203:   mov    %ecx,%r10d
+    0.00 :   1206:   mov    $0x1,%eax
+    0.00 :   120b:   lea    (%rdi,%rsi,4),%rcx
+   19.76 :   120f:   shlx   %edx,%eax,%r11d
+    0.00 :   1214:   lea    0x0(,%rsi,8),%r9
+    0.00 :   121c:   or     %r11b,0x8000(%rcx)
+    0.00 :   1223:   test   %r10b,%r10b
+   17.60 :   1226:   je     1231 <(anonymous namespace)::Level<512, 8>::set_line(int, int, bool, bool, unsigned long) [clone .constprop.0]+0x31>
+    0.00 :   1228:   or     0x8001(%rcx),%r11b
+    0.00 :   122f:   jmp    123b <(anonymous namespace)::Level<512, 8>::set_line(int, int, bool, bool, unsigned long) [clone .constprop.0]+0x3b>
+    0.00 :   1231:   not    %r11d
+    0.00 :   1234:   and    0x8001(%rcx),%r11b
+    0.00 :   123b:   movslq %edx,%rdx
+    5.47 :   123e:   mov    %r11b,0x8001(%rcx)
+    0.00 :   1245:   lea    0x10db4(%rip),%r10        # 12000 <TableLRU::next_state>
+    0.00 :   124c:   add    %rdx,%r9
+    7.97 :   124f:   mov    %r8,(%rdi,%r9,8)
+    8.45 :   1253:   movzwl 0x8002(%rcx),%edi
+    0.00 :   125a:   lea    (%rdx,%rdi,8),%r8
+   31.01 :   125e:   mov    (%r10,%r8,2),%si
+    0.00 :   1263:   mov    %si,0x8002(%rcx)
+    5.24 :   126a:   ret
+ Percent |	Source code & Disassembly of cache_sim_runner for cycles:P (31 samples, percent: local period)
+--------------------------------------------------------------------------------------------------------------
+         :
+         :
+         :
+         : 3    Disassembly of section .text:
+         :
+         : 5    0000000000001b80 <(anonymous namespace)::BaselineCacheSim::on_init()>:
+    0.00 :   1b80:   endbr64
+    0.00 :   1b84:   push   %rbp
+    0.00 :   1b85:   mov    %rsp,%rbp
+    0.00 :   1b88:   push   %r15
+    0.00 :   1b8a:   push   %r14
+    0.00 :   1b8c:   push   %r13
+    0.00 :   1b8e:   push   %r12
+    0.00 :   1b90:   mov    %rdi,%r12
+    0.00 :   1b93:   push   %rbx
+    0.00 :   1b94:   sub    $0x68,%rsp
+    0.00 :   1b98:   cmpb   $0x0,0x5461(%rip)        # 7000 <TableLRU::initialized>
+    0.00 :   1b9f:   je     1e16 <(anonymous namespace)::BaselineCacheSim::on_init()+0x296>
+    0.00 :   1ba5:   xor    %esi,%esi
+    0.00 :   1ba7:   lea    0x40(%r12),%rdi
+    0.00 :   1bac:   mov    $0x1000,%edx
+    0.00 :   1bb1:   call   1140 <memset@plt>
+    0.00 :   1bb6:   vpxor  %xmm0,%xmm0,%xmm0
+    0.00 :   1bba:   xor    %esi,%esi
+    0.00 :   1bbc:   mov    $0x8000,%edx
+    0.00 :   1bc1:   vmovdqu %ymm0,0x1040(%r12)
+    0.00 :   1bcb:   lea    0x1140(%r12),%rdi
+    0.00 :   1bd3:   lea    0x9942(%r12),%r15
+    0.00 :   1bdb:   vmovdqu %ymm0,0x1060(%r12)
+    0.00 :   1be5:   vmovdqu %ymm0,0x1080(%r12)
+    0.00 :   1bef:   vmovdqu %ymm0,0x10a0(%r12)
+    0.00 :   1bf9:   vmovdqu %ymm0,0x10c0(%r12)
+    0.00 :   1c03:   vmovdqu %ymm0,0x10e0(%r12)
+    0.00 :   1c0d:   vmovdqu %ymm0,0x1100(%r12)
+    0.00 :   1c17:   vmovdqu %ymm0,0x1120(%r12)
+    0.00 :   1c21:   vzeroupper
+    0.00 :   1c24:   call   1140 <memset@plt>
+    0.00 :   1c29:   lea    0x9142(%r12),%rax
+    0.00 :   1c31:   xor    %esi,%esi
+    0.00 :   1c33:   xor    %r13d,%r13d
+    0.00 :   1c36:   xor    %ecx,%ecx
+    0.00 :   1c38:   xor    %r11d,%r11d
+    0.00 :   1c3b:   mov    %si,-0x2(%rax)
+    0.00 :   1c3f:   xor    %edx,%edx
+    0.00 :   1c41:   xor    %r10d,%r10d
+    0.00 :   1c44:   xor    %ebx,%ebx
+    0.00 :   1c46:   mov    %r13w,0x2(%rax)
+    0.00 :   1c4b:   xor    %r14d,%r14d
+    0.00 :   1c4e:   xor    %r12d,%r12d
+    0.00 :   1c51:   xor    %r8d,%r8d
+    0.00 :   1c54:   mov    %cx,0x6(%rax)
+    0.00 :   1c58:   xor    %r9d,%r9d
+    0.00 :   1c5b:   xor    %edi,%edi
+    0.00 :   1c5d:   xor    %esi,%esi
+    0.00 :   1c5f:   mov    %r11w,0xa(%rax)
+    0.00 :   1c64:   xor    %r13d,%r13d
+    0.00 :   1c67:   xor    %ecx,%ecx
+    0.00 :   1c69:   xor    %r11d,%r11d
+    0.00 :   1c6c:   mov    %dx,0xe(%rax)
+    0.00 :   1c70:   xor    %edx,%edx
+    0.00 :   1c72:   mov    %r10w,0x12(%rax)
+    0.00 :   1c77:   xor    %r10d,%r10d
+    0.00 :   1c7a:   mov    %bx,0x16(%rax)
+    0.00 :   1c7e:   xor    %ebx,%ebx
+    0.00 :   1c80:   mov    %r14w,0x1a(%rax)
+    0.00 :   1c85:   xor    %r14d,%r14d
+    0.00 :   1c88:   mov    %r12w,0x1e(%rax)
+    0.00 :   1c8d:   xor    %r12d,%r12d
+    0.00 :   1c90:   mov    %r8w,0x22(%rax)
+    0.00 :   1c95:   xor    %r8d,%r8d
+    0.00 :   1c98:   mov    %r9w,0x26(%rax)
+    0.00 :   1c9d:   xor    %r9d,%r9d
+    0.00 :   1ca0:   mov    %di,0x2a(%rax)
+    0.00 :   1ca4:   xor    %edi,%edi
+    0.00 :   1ca6:   mov    %si,0x2e(%rax)
+    0.00 :   1caa:   xor    %esi,%esi
+    0.00 :   1cac:   mov    %r13w,0x32(%rax)
+    0.00 :   1cb1:   xor    %r13d,%r13d
+    0.00 :   1cb4:   mov    %cx,0x36(%rax)
+    0.00 :   1cb8:   xor    %ecx,%ecx
+    0.00 :   1cba:   mov    %r11w,0x3a(%rax)
+    0.00 :   1cbf:   xor    %r11d,%r11d
+    0.00 :   1cc2:   mov    %dx,0x3e(%rax)
+    0.00 :   1cc6:   xor    %edx,%edx
+    0.00 :   1cc8:   mov    %r10w,0x42(%rax)
+    0.00 :   1ccd:   xor    %r10d,%r10d
+    0.00 :   1cd0:   mov    %bx,0x46(%rax)
+    0.00 :   1cd4:   xor    %ebx,%ebx
+    0.00 :   1cd6:   mov    %r14w,0x4a(%rax)
+    0.00 :   1cdb:   xor    %r14d,%r14d
+    0.00 :   1cde:   mov    %r12w,0x4e(%rax)
+    0.00 :   1ce3:   xor    %r12d,%r12d
+    0.00 :   1ce6:   mov    %r8w,0x52(%rax)
+    0.00 :   1ceb:   xor    %r8d,%r8d
+    0.00 :   1cee:   mov    %r9w,0x56(%rax)
+    0.00 :   1cf3:   xor    %r9d,%r9d
+    0.00 :   1cf6:   mov    %di,0x5a(%rax)
+    0.00 :   1cfa:   xor    %edi,%edi
+    0.00 :   1cfc:   mov    %si,0x5e(%rax)
+    0.00 :   1d00:   xor    %esi,%esi
+    0.00 :   1d02:   mov    %r13w,0x62(%rax)
+    0.00 :   1d07:   xor    %r13d,%r13d
+    0.00 :   1d0a:   mov    %cx,0x66(%rax)
+    0.00 :   1d0e:   xor    %ecx,%ecx
+    0.00 :   1d10:   mov    %r11w,0x6a(%rax)
+    0.00 :   1d15:   xor    %r11d,%r11d
+    0.00 :   1d18:   mov    %dx,0x6e(%rax)
+    0.00 :   1d1c:   xor    %edx,%edx
+    0.00 :   1d1e:   mov    %r10w,0x72(%rax)
+    0.00 :   1d23:   xor    %r10d,%r10d
+    0.00 :   1d26:   mov    %bx,0x76(%rax)
+    0.00 :   1d2a:   xor    %ebx,%ebx
+    0.00 :   1d2c:   mov    %r14w,0x7a(%rax)
+    0.00 :   1d31:   xor    %r14d,%r14d
+    0.00 :   1d34:   mov    %r12w,(%rax)
+    0.00 :   1d38:   xor    %r12d,%r12d
+    0.00 :   1d3b:   mov    %r8w,0x4(%rax)
+    0.00 :   1d40:   xor    %r8d,%r8d
+    0.00 :   1d43:   mov    %r9w,0x8(%rax)
+    0.00 :   1d48:   xor    %r9d,%r9d
+    0.00 :   1d4b:   mov    %di,0xc(%rax)
+    0.00 :   1d4f:   xor    %edi,%edi
+    0.00 :   1d51:   mov    %si,0x10(%rax)
+    0.00 :   1d55:   xor    %esi,%esi
+    0.00 :   1d57:   mov    %r13w,0x14(%rax)
+    0.00 :   1d5c:   xor    %r13d,%r13d
+    0.00 :   1d5f:   mov    %cx,0x18(%rax)
+    0.00 :   1d63:   xor    %ecx,%ecx
+    0.00 :   1d65:   mov    %r11w,0x1c(%rax)
+    0.00 :   1d6a:   xor    %r11d,%r11d
+    0.00 :   1d6d:   mov    %dx,0x20(%rax)
+    0.00 :   1d71:   xor    %edx,%edx
+    0.00 :   1d73:   mov    %r10w,0x24(%rax)
+    0.00 :   1d78:   xor    %r10d,%r10d
+    0.00 :   1d7b:   mov    %bx,0x28(%rax)
+    0.00 :   1d7f:   xor    %ebx,%ebx
+    0.00 :   1d81:   mov    %r14w,0x2c(%rax)
+    0.00 :   1d86:   xor    %r14d,%r14d
+    0.00 :   1d89:   mov    %r12w,0x30(%rax)
+    0.00 :   1d8e:   xor    %r12d,%r12d
+    0.00 :   1d91:   mov    %r8w,0x34(%rax)
+    0.00 :   1d96:   xor    %r8d,%r8d
+    0.00 :   1d99:   mov    %r9w,0x38(%rax)
+    0.00 :   1d9e:   xor    %r9d,%r9d
+    0.00 :   1da1:   mov    %di,0x3c(%rax)
+    0.00 :   1da5:   xor    %edi,%edi
+    0.00 :   1da7:   mov    %si,0x40(%rax)
+    0.00 :   1dab:   xor    %esi,%esi
+    0.00 :   1dad:   mov    %r13w,0x44(%rax)
+    0.00 :   1db2:   xor    %r13d,%r13d
+    0.00 :   1db5:   mov    %cx,0x48(%rax)
+    0.00 :   1db9:   xor    %ecx,%ecx
+    0.00 :   1dbb:   mov    %r11w,0x4c(%rax)
+    0.00 :   1dc0:   xor    %r11d,%r11d
+    0.00 :   1dc3:   sub    $0xffffffffffffff80,%rax
+    0.00 :   1dc7:   mov    %dx,-0x30(%rax)
+    0.00 :   1dcb:   mov    %r10w,-0x2c(%rax)
+    0.00 :   1dd0:   mov    %bx,-0x28(%rax)
+    0.00 :   1dd4:   mov    %r14w,-0x24(%rax)
+    0.00 :   1dd9:   mov    %r12w,-0x20(%rax)
+    0.00 :   1dde:   mov    %r8w,-0x1c(%rax)
+    0.00 :   1de3:   mov    %r9w,-0x18(%rax)
+    0.00 :   1de8:   mov    %di,-0x14(%rax)
+    0.00 :   1dec:   mov    %si,-0x10(%rax)
+    0.00 :   1df0:   mov    %r13w,-0xc(%rax)
+    0.00 :   1df5:   mov    %cx,-0x8(%rax)
+    0.00 :   1df9:   mov    %r11w,-0x4(%rax)
+    0.00 :   1dfe:   cmp    %rax,%r15
+    0.00 :   1e01:   jne    1c31 <(anonymous namespace)::BaselineCacheSim::on_init()+0xb1>
+    0.00 :   1e07:   add    $0x68,%rsp
+    0.00 :   1e0b:   pop    %rbx
+    0.00 :   1e0c:   pop    %r12
+    0.00 :   1e0e:   pop    %r13
+    0.00 :   1e10:   pop    %r14
+    0.00 :   1e12:   pop    %r15
+    0.00 :   1e14:   pop    %rbp
+    0.00 :   1e15:   ret
+    0.00 :   1e16:   mov    $0xe,%edx
+    0.00 :   1e1b:   lea    0x101de(%rip),%rbx        # 12000 <TableLRU::next_state>
+    0.00 :   1e22:   mov    $0x9d800,%esi
+    0.00 :   1e27:   mov    $0x1,%r15d
+    0.00 :   1e2d:   mov    %rbx,%rdi
+    0.00 :   1e30:   lea    0x61c9(%rip),%r13        # 8000 <TableLRU::victim_way>
+    0.00 :   1e37:   call   1190 <madvise@plt>
+    0.00 :   1e3c:   mov    $0xe,%edx
+    0.00 :   1e41:   mov    $0x9d80,%esi
+    0.00 :   1e46:   lea    0x61b3(%rip),%rdi        # 8000 <TableLRU::victim_way>
+    0.00 :   1e4d:   call   1190 <madvise@plt>
+    0.00 :   1e52:   mov    %rbx,%rdi
+    0.00 :   1e55:   mov    $0x9d800,%esi
+    0.00 :   1e5a:   call   11b0 <mlock@plt>
+    0.00 :   1e5f:   mov    $0x9d80,%esi
+    0.00 :   1e64:   lea    0x6195(%rip),%rdi        # 8000 <TableLRU::victim_way>
+    0.00 :   1e6b:   call   11b0 <mlock@plt>
+    0.00 :   1e70:   lea    0x48(%rsp),%rax
+    0.00 :   1e75:   lea    0x50(%rsp),%rdx
+    0.00 :   1e7a:   mov    %rbx,0x30(%rsp)
+    0.00 :   1e7f:   lea    0x59(%rsp),%rcx
+    0.00 :   1e84:   lea    0x58(%rsp),%rsi
+    0.00 :   1e89:   mov    %rax,0x18(%rsp)
+    0.00 :   1e8e:   mov    %r12,%rbx
+    0.00 :   1e91:   mov    %rdx,0x20(%rsp)
+    0.00 :   1e96:   mov    %r13,%r12
+    0.00 :   1e99:   mov    %rcx,0x28(%rsp)
+    0.00 :   1e9e:   mov    %rsi,0x10(%rsp)
+    0.00 :   1ea3:   data16 cs nopw 0x0(%rax,%rax,1)
+    0.00 :   1eae:   data16 cs nopw 0x0(%rax,%rax,1)
+    0.00 :   1eb9:   nopl   0x0(%rax)
+    0.00 :   1ec0:   lea    0x6139(%rip),%rdi        # 8000 <TableLRU::victim_way>
+    0.00 :   1ec7:   mov    0x18(%rsp),%r9
+    0.00 :   1ecc:   mov    %r12d,%edx
+    0.00 :   1ecf:   mov    $0xffffffff,%r8d
+    0.00 :   1ed5:   mov    %rdi,0x38(%rsp)
+    0.00 :   1eda:   lea    0x137b(%rip),%rdi        # 325c <TableLRU::fact+0x1c>
+    0.00 :   1ee1:   sub    0x38(%rsp),%dx
+    0.00 :   1ee6:   data16 cs nopw 0x0(%rax,%rax,1)
+    0.00 :   1ef1:   data16 cs nopw 0x0(%rax,%rax,1)
+    0.00 :   1efc:   nopl   0x0(%rax)
+    0.00 :   1f00:   movzwl %dx,%eax
+    0.00 :   1f03:   mov    %r8d,%r11d
+    0.00 :   1f06:   cltd
+   16.22 :   1f07:   idivl  (%rdi)
+    0.00 :   1f09:   test   %eax,%eax
+    0.00 :   1f0b:   jle    1fd0 <(anonymous namespace)::BaselineCacheSim::on_init()+0x450>
+    0.00 :   1f11:   mov    %eax,%r10d
+    0.00 :   1f14:   xor    %r14d,%r14d
+    0.00 :   1f17:   and    $0x7,%r10d
+    0.00 :   1f1b:   je     1f8f <(anonymous namespace)::BaselineCacheSim::on_init()+0x40f>
+    0.00 :   1f1d:   cmp    $0x1,%r10d
+    3.34 :   1f21:   je     1f80 <(anonymous namespace)::BaselineCacheSim::on_init()+0x400>
+    0.00 :   1f23:   cmp    $0x2,%r10d
+    0.00 :   1f27:   je     1f76 <(anonymous namespace)::BaselineCacheSim::on_init()+0x3f6>
+    0.00 :   1f29:   cmp    $0x3,%r10d
+    0.00 :   1f2d:   je     1f6c <(anonymous namespace)::BaselineCacheSim::on_init()+0x3ec>
+    0.00 :   1f2f:   cmp    $0x4,%r10d
+    0.00 :   1f33:   je     1f62 <(anonymous namespace)::BaselineCacheSim::on_init()+0x3e2>
+    0.00 :   1f35:   cmp    $0x5,%r10d
+    0.00 :   1f39:   je     1f58 <(anonymous namespace)::BaselineCacheSim::on_init()+0x3d8>
+    0.00 :   1f3b:   cmp    $0x6,%r10d
+    0.00 :   1f3f:   je     1f4e <(anonymous namespace)::BaselineCacheSim::on_init()+0x3ce>
+    0.00 :   1f41:   lea    -0x1(%r8),%r11d
+    0.00 :   1f45:   mov    $0x1,%r14d
+    0.00 :   1f4b:   and    %r8d,%r11d
+    0.00 :   1f4e:   lea    -0x1(%r11),%r13d
+    0.00 :   1f52:   inc    %r14d
+    0.00 :   1f55:   and    %r13d,%r11d
+    0.00 :   1f58:   lea    -0x1(%r11),%ecx
+    0.00 :   1f5c:   inc    %r14d
+    0.00 :   1f5f:   and    %ecx,%r11d
+    0.00 :   1f62:   lea    -0x1(%r11),%esi
+    0.00 :   1f66:   inc    %r14d
+    0.00 :   1f69:   and    %esi,%r11d
+    0.00 :   1f6c:   lea    -0x1(%r11),%r10d
+    0.00 :   1f70:   inc    %r14d
+    0.00 :   1f73:   and    %r10d,%r11d
+    3.38 :   1f76:   lea    -0x1(%r11),%r13d
+    0.00 :   1f7a:   inc    %r14d
+    0.00 :   1f7d:   and    %r13d,%r11d
+    3.09 :   1f80:   lea    -0x1(%r11),%ecx
+    0.00 :   1f84:   inc    %r14d
+    0.00 :   1f87:   and    %ecx,%r11d
+    0.00 :   1f8a:   cmp    %r14d,%eax
+    0.00 :   1f8d:   je     1fd0 <(anonymous namespace)::BaselineCacheSim::on_init()+0x450>
+    0.00 :   1f8f:   lea    -0x1(%r11),%esi
+    0.00 :   1f93:   add    $0x8,%r14d
+    0.00 :   1f97:   and    %esi,%r11d
+    0.00 :   1f9a:   lea    -0x1(%r11),%r10d
+    0.00 :   1f9e:   and    %r10d,%r11d
+    0.00 :   1fa1:   lea    -0x1(%r11),%r13d
+    0.00 :   1fa5:   and    %r13d,%r11d
+    0.00 :   1fa8:   lea    -0x1(%r11),%ecx
+    0.00 :   1fac:   and    %ecx,%r11d
+    0.00 :   1faf:   lea    -0x1(%r11),%esi
+    0.00 :   1fb3:   and    %esi,%r11d
+    0.00 :   1fb6:   lea    -0x1(%r11),%r10d
+    0.00 :   1fba:   and    %r10d,%r11d
+    0.00 :   1fbd:   lea    -0x1(%r11),%r13d
+    0.00 :   1fc1:   and    %r13d,%r11d
+    0.00 :   1fc4:   lea    -0x1(%r11),%ecx
+    0.00 :   1fc8:   and    %ecx,%r11d
+    0.00 :   1fcb:   cmp    %r14d,%eax
+    0.00 :   1fce:   jne    1f8f <(anonymous namespace)::BaselineCacheSim::on_init()+0x40f>
+    0.00 :   1fd0:   movzbl %r11b,%eax
+    0.00 :   1fd4:   xor    %r11d,%r11d
+    0.00 :   1fd7:   lea    0x1262(%rip),%rsi        # 3240 <TableLRU::fact>
+    0.00 :   1fde:   inc    %r9
+   10.06 :   1fe1:   tzcnt  %eax,%r11d
+    0.00 :   1fe6:   lea    -0x4(%rdi),%r14
+    3.23 :   1fea:   mov    %r11b,-0x1(%r9)
+    0.00 :   1fee:   btr    %r11d,%r8d
+    0.00 :   1ff2:   cmp    %rdi,%rsi
+    0.00 :   1ff5:   je     2000 <(anonymous namespace)::BaselineCacheSim::on_init()+0x480>
+    0.00 :   1ff7:   mov    %r14,%rdi
+    6.31 :   1ffa:   jmp    1f00 <(anonymous namespace)::BaselineCacheSim::on_init()+0x380>
+    0.00 :   1fff:   nop
+    0.00 :   2000:   movzbl 0x4f(%rsp),%r8d
+    0.00 :   2006:   movzbl 0x48(%rsp),%r9d
+    3.14 :   200c:   mov    %r12,0x8(%rsp)
+    0.00 :   2011:   xor    %r14d,%r14d
+    0.00 :   2014:   movzbl 0x49(%rsp),%edi
+    0.00 :   2019:   movzbl 0x4a(%rsp),%edx
+    0.00 :   201e:   mov    %rbx,(%rsp)
+    0.00 :   2022:   movzbl 0x4b(%rsp),%r10d
+    0.00 :   2028:   movzbl 0x4c(%rsp),%r13d
+    0.00 :   202e:   mov    %r8b,(%r12)
+    0.00 :   2032:   movzbl 0x4d(%rsp),%ecx
+    0.00 :   2037:   movzbl 0x4e(%rsp),%eax
+    0.00 :   203c:   movb   $0x0,0x50(%rsp,%r9,1)
+    0.00 :   2042:   movb   $0x1,0x50(%rsp,%rdi,1)
+    0.00 :   2047:   movb   $0x2,0x50(%rsp,%rdx,1)
+    0.00 :   204c:   movb   $0x3,0x50(%rsp,%r10,1)
+    0.00 :   2052:   movb   $0x4,0x50(%rsp,%r13,1)
+    0.00 :   2058:   movb   $0x5,0x50(%rsp,%rcx,1)
+    0.00 :   205d:   movb   $0x6,0x50(%rsp,%rax,1)
+    0.00 :   2062:   movb   $0x7,0x50(%rsp,%r8,1)
+    0.00 :   2068:   data16 cs nopw 0x0(%rax,%rax,1)
+    0.00 :   2073:   data16 cs nopw 0x0(%rax,%rax,1)
+    0.00 :   207e:   xchg   %ax,%ax
+    0.00 :   2080:   mov    0x20(%rsp),%r12
+    0.00 :   2085:   mov    %r14d,%ebx
+    0.00 :   2088:   movzbl (%r12,%r14,1),%r12d
+    0.00 :   208d:   mov    %r12,%rdx
+    0.00 :   2090:   test   %r12d,%r12d
+    0.00 :   2093:   je     2340 <(anonymous namespace)::BaselineCacheSim::on_init()+0x7c0>
+    0.00 :   2099:   mov    0x18(%rsp),%r13
+    0.00 :   209e:   mov    0x28(%rsp),%rdi
+    0.00 :   20a3:   mov    %r13,%rsi
+    3.11 :   20a6:   call   1160 <memcpy@plt>
+    0.00 :   20ab:   lea    0x1(%r12),%r9d
+    0.00 :   20b0:   cmp    $0x7,%r12d
+    0.00 :   20b4:   je     2200 <(anonymous namespace)::BaselineCacheSim::on_init()+0x680>
+    0.00 :   20ba:   mov    0x10(%rsp),%rdi
+    0.00 :   20bf:   movslq %r9d,%r10
+    0.00 :   20c2:   mov    $0x8,%eax
+    3.02 :   20c7:   lea    (%rdi,%r10,1),%rcx
+    0.00 :   20cb:   add    %r13,%r10
+    0.00 :   20ce:   sub    %r9d,%eax
+    0.00 :   20d1:   je     2200 <(anonymous namespace)::BaselineCacheSim::on_init()+0x680>
+    0.00 :   20d7:   mov    %eax,%r12d
+    0.00 :   20da:   xor    %edx,%edx
+    0.00 :   20dc:   and    $0x7,%r12d
+    0.00 :   20e0:   je     2172 <(anonymous namespace)::BaselineCacheSim::on_init()+0x5f2>
+    3.08 :   20e6:   cmp    $0x1,%r12d
+    0.00 :   20ea:   je     215c <(anonymous namespace)::BaselineCacheSim::on_init()+0x5dc>
+    0.00 :   20ec:   cmp    $0x2,%r12d
+    0.00 :   20f0:   je     214e <(anonymous namespace)::BaselineCacheSim::on_init()+0x5ce>
+    0.00 :   20f2:   cmp    $0x3,%r12d
+    0.00 :   20f6:   je     2140 <(anonymous namespace)::BaselineCacheSim::on_init()+0x5c0>
+    0.00 :   20f8:   cmp    $0x4,%r12d
+    0.00 :   20fc:   je     2133 <(anonymous namespace)::BaselineCacheSim::on_init()+0x5b3>
+    0.00 :   20fe:   cmp    $0x5,%r12d
+    0.00 :   2102:   je     2125 <(anonymous namespace)::BaselineCacheSim::on_init()+0x5a5>
+    0.00 :   2104:   cmp    $0x6,%r12d
+    0.00 :   2108:   je     2118 <(anonymous namespace)::BaselineCacheSim::on_init()+0x598>
+    0.00 :   210a:   movzbl (%r10,%rdx,1),%r11d
+    0.00 :   210f:   mov    %r11b,(%rcx,%rdx,1)
+    0.00 :   2113:   mov    $0x1,%edx
+    0.00 :   2118:   mov    %edx,%esi
+    0.00 :   211a:   inc    %edx
+    0.00 :   211c:   movzbl (%r10,%rsi,1),%r8d
+    0.00 :   2121:   mov    %r8b,(%rcx,%rsi,1)
+    0.00 :   2125:   mov    %edx,%r13d
+    0.00 :   2128:   inc    %edx
+    0.00 :   212a:   movzbl (%r10,%r13,1),%r9d
+    3.34 :   212f:   mov    %r9b,(%rcx,%r13,1)
+    0.00 :   2133:   mov    %edx,%edi
+    0.00 :   2135:   inc    %edx
+    0.00 :   2137:   movzbl (%r10,%rdi,1),%r12d
+    0.00 :   213c:   mov    %r12b,(%rcx,%rdi,1)
+    0.00 :   2140:   mov    %edx,%r11d
+    0.00 :   2143:   inc    %edx
+    0.00 :   2145:   movzbl (%r10,%r11,1),%esi
+    0.00 :   214a:   mov    %sil,(%rcx,%r11,1)
+    0.00 :   214e:   mov    %edx,%r13d
+    0.00 :   2151:   inc    %edx
+    0.00 :   2153:   movzbl (%r10,%r13,1),%r8d
+    0.00 :   2158:   mov    %r8b,(%rcx,%r13,1)
+    0.00 :   215c:   mov    %edx,%r9d
+    0.00 :   215f:   inc    %edx
+    3.44 :   2161:   movzbl (%r10,%r9,1),%edi
+    3.36 :   2166:   mov    %dil,(%rcx,%r9,1)
+    0.00 :   216a:   cmp    %eax,%edx
+    0.00 :   216c:   jae    2200 <(anonymous namespace)::BaselineCacheSim::on_init()+0x680>
+    0.00 :   2172:   mov    %edx,%r12d
+    0.00 :   2175:   lea    0x1(%rdx),%esi
+    0.00 :   2178:   lea    0x2(%rdx),%r9d
+    0.00 :   217c:   movzbl (%r10,%r12,1),%r11d
+    0.00 :   2181:   lea    0x3(%rdx),%edi
+    0.00 :   2184:   mov    %r11b,(%rcx,%r12,1)
+    0.00 :   2188:   movzbl (%r10,%rsi,1),%r13d
+    0.00 :   218d:   lea    0x4(%rdx),%r11d
+    0.00 :   2191:   mov    %r13b,(%rcx,%rsi,1)
+    0.00 :   2195:   movzbl (%r10,%r9,1),%r8d
+    0.00 :   219a:   lea    0x5(%rdx),%r13d
+    0.00 :   219e:   mov    %r8b,(%rcx,%r9,1)
+    0.00 :   21a2:   movzbl (%r10,%rdi,1),%r12d
+    0.00 :   21a7:   mov    %r12b,(%rcx,%rdi,1)
+    0.00 :   21ab:   movzbl (%r10,%r11,1),%esi
+    0.00 :   21b0:   lea    0x6(%rdx),%edi
+    0.00 :   21b3:   lea    0x7(%rdx),%r12d
+    0.00 :   21b7:   add    $0x8,%edx
+    0.00 :   21ba:   mov    %sil,(%rcx,%r11,1)
+    0.00 :   21be:   movzbl (%r10,%r13,1),%r9d
+    0.00 :   21c3:   mov    %r9b,(%rcx,%r13,1)
+    0.00 :   21c7:   movzbl (%r10,%rdi,1),%r8d
+    0.00 :   21cc:   mov    %r8b,(%rcx,%rdi,1)
+    0.00 :   21d0:   movzbl (%r10,%r12,1),%r11d
+    0.00 :   21d5:   mov    %r11b,(%rcx,%r12,1)
+    0.00 :   21d9:   cmp    %eax,%edx
+    0.00 :   21db:   jb     2172 <(anonymous namespace)::BaselineCacheSim::on_init()+0x5f2>
+    0.00 :   21dd:   data16 cs nopw 0x0(%rax,%rax,1)
+    0.00 :   21e8:   data16 cs nopw 0x0(%rax,%rax,1)
+    0.00 :   21f3:   data16 cs nopw 0x0(%rax,%rax,1)
+    0.00 :   21fe:   xchg   %ax,%ax
+    0.00 :   2200:   movzbl 0x59(%rsp),%esi
+    0.00 :   2205:   movzbl 0x5a(%rsp),%r8d
+    0.00 :   220b:   shlx   %ebx,%r15d,%ebx
+    0.00 :   2210:   xor    %r13d,%r13d
+    0.00 :   2213:   xor    %r11d,%r11d
+    0.00 :   2216:   shlx   %esi,%r15d,%eax
+    0.00 :   221b:   or     %ebx,%eax
+    0.00 :   221d:   bzhi   %esi,%ebx,%r10d
+    3.31 :   2222:   shlx   %r8d,%r15d,%r9d
+    3.10 :   2227:   movzbl %al,%ecx
+    3.15 :   222a:   xor    %ebx,%ebx
+    0.00 :   222c:   or     %r9d,%eax
+    0.00 :   222f:   popcnt %r10d,%r13d
+    0.00 :   2234:   bzhi   %r8d,%ecx,%edx
+    0.00 :   2239:   movzbl 0x5b(%rsp),%ecx
+    3.20 :   223e:   popcnt %edx,%ebx
+    0.00 :   2242:   movzbl %al,%edi
+    0.00 :   2245:   movzbl 0x5c(%rsp),%edx
+    0.00 :   224a:   sub    %r13d,%esi
+    0.00 :   224d:   sub    %ebx,%r8d
+    0.00 :   2250:   shlx   %ecx,%r15d,%r10d
+    0.00 :   2255:   or     %r10d,%eax
+    0.00 :   2258:   xor    %r10d,%r10d
+    6.17 :   225b:   bzhi   %ecx,%edi,%r12d
+    0.00 :   2260:   movzbl %al,%r9d
+    0.00 :   2264:   popcnt %r12d,%r11d
+    0.00 :   2269:   shlx   %edx,%r15d,%r12d
+    0.00 :   226e:   or     %r12d,%eax
+    0.00 :   2271:   bzhi   %edx,%r9d,%edi
+    0.00 :   2276:   popcnt %edi,%r10d
+    0.00 :   227b:   movzbl 0x5d(%rsp),%edi
+    0.00 :   2280:   movzbl %al,%r9d
+    0.00 :   2284:   imul   $0x2d0,%si,%si
+    0.00 :   2289:   mov    %r8d,%r13d
+    0.00 :   228c:   bzhi   %edi,%r9d,%r12d
+    0.00 :   2291:   xor    %r9d,%r9d
+    0.00 :   2294:   shl    $0x4,%r13d
+    0.00 :   2298:   popcnt %r12d,%r9d
+    0.00 :   229d:   movzbl 0x5e(%rsp),%r12d
+    0.00 :   22a3:   mov    %r9d,0x38(%rsp)
+    0.00 :   22a8:   shlx   %edi,%r15d,%r9d
+    0.00 :   22ad:   or     %r9d,%eax
+    0.00 :   22b0:   sub    %r8d,%r13d
+    0.00 :   22b3:   movzbl %al,%eax
+    0.00 :   22b6:   bzhi   %r12d,%eax,%r9d
+    0.00 :   22bb:   xor    %eax,%eax
+    6.45 :   22bd:   popcnt %r9d,%eax
+    0.00 :   22c2:   imul   $0x13b0,%r14w,%r9w
+    0.00 :   22c8:   sub    %eax,%r12d
+    0.00 :   22cb:   add    %r12d,%r9d
+    0.00 :   22ce:   mov    0x30(%rsp),%r12
+    0.00 :   22d3:   add    %r9d,%esi
+    0.00 :   22d6:   sub    %r11d,%ecx
+    0.00 :   22d9:   sub    %r10d,%edx
+    3.09 :   22dc:   mov    0x38(%rsp),%r10d
+    0.00 :   22e1:   lea    (%rsi,%r13,8),%r8d
+    0.00 :   22e5:   lea    (%rcx,%rcx,2),%ebx
+    0.00 :   22e8:   lea    (%r8,%rbx,8),%ecx
+    0.00 :   22ec:   lea    (%rdx,%rdx,2),%r11d
+    0.00 :   22f0:   sub    %r10d,%edi
+    0.00 :   22f3:   lea    (%rcx,%r11,2),%edx
+    3.41 :   22f7:   lea    (%rdx,%rdi,2),%edi
+    0.00 :   22fa:   mov    %di,(%r12,%r14,2)
+    0.00 :   22ff:   inc    %r14
+    0.00 :   2302:   cmp    $0x8,%r14
+    0.00 :   2306:   jne    2080 <(anonymous namespace)::BaselineCacheSim::on_init()+0x500>
+    0.00 :   230c:   mov    0x8(%rsp),%r12
+    0.00 :   2311:   lea    0xfa68(%rip),%r14        # 11d80 <TableLRU::victim_way+0x9d80>
+    0.00 :   2318:   addq   $0x10,0x30(%rsp)
+    0.00 :   231e:   mov    (%rsp),%rbx
+    0.00 :   2322:   inc    %r12
+    0.00 :   2325:   cmp    %r14,%r12
+    0.00 :   2328:   jne    1ec0 <(anonymous namespace)::BaselineCacheSim::on_init()+0x340>
+    0.00 :   232e:   movb   $0x1,0x4ccb(%rip)        # 7000 <TableLRU::initialized>
+    0.00 :   2335:   mov    %rbx,%r12
+    0.00 :   2338:   jmp    1ba5 <(anonymous namespace)::BaselineCacheSim::on_init()+0x25>
+    0.00 :   233d:   nopl   (%rax)
+    0.00 :   2340:   mov    0x28(%rsp),%rsi
+    0.00 :   2345:   mov    0x49(%rsp),%r11d
+    0.00 :   234a:   mov    0x4c(%rsp),%r8d
+    0.00 :   234f:   mov    %r11d,(%rsi)
+    0.00 :   2352:   mov    %r8d,0x3(%rsi)
+    0.00 :   2356:   jmp    2200 <(anonymous namespace)::BaselineCacheSim::on_init()+0x680>
