@@ -161,8 +161,10 @@ public:
         prctl(PR_TASK_PERF_EVENTS_ENABLE);
 #endif
 #endif
-
-        csot::CacheStats st{};
+        std::uint64_t c_writes = 0;
+        std::uint64_t c_l1_hits = 0;
+        std::uint64_t c_l2_hits = 0;
+        std::uint64_t c_dirty_writebacks = 0;
 
         for (std::size_t i = 0; i < n; ++i) {
             // Optional prefetch – test with your trace; often redundant on modern CPUs
@@ -170,8 +172,7 @@ public:
 
             const csot::MemAccess& a = acc[i];
             const bool wr = (a.is_write != 0);
-            st.writes += wr;
-            st.reads  += !wr;
+            c_writes += wr;
 
             const std::uint64_t b = a.address >> 6;
             const int s1 = L1::set_of(b);
@@ -182,8 +183,7 @@ public:
             // L1 lookup
             int w1 = l1_.find_way(s1, t1);
             bool l1_hit = (w1 >= 0);
-            st.l1_hits += l1_hit;
-            st.l1_misses += !l1_hit;
+            c_l1_hits += l1_hit;
 
             if (__builtin_expect(l1_hit, 1)) {
                 l1_.touch_mru(s1, w1);
@@ -194,14 +194,13 @@ public:
             // L2 lookup
             int w2 = l2_.find_way(s2, t2);
             bool l2_hit = (w2 >= 0);
-            st.l2_hits += l2_hit;
-            st.l2_misses += !l2_hit;
+            c_l2_hits += l2_hit;
 
             if (l2_hit) {
                 l2_.touch_mru(s2, w2);
             } else {
                 int victim = l2_.victim_way(s2);
-                st.dirty_writebacks += ((l2_.meta[s2].valid & l2_.meta[s2].dirty) >> victim) & 1;
+                c_dirty_writebacks += ((l2_.meta[s2].valid & l2_.meta[s2].dirty) >> victim) & 1;
                 l2_.set_line(s2, victim, true, false, t2);
             }
 
@@ -218,7 +217,7 @@ public:
                     l2_.meta[s2v].dirty |= (1 << wv);
                 } else {
                     int vv = l2_.victim_way(s2v);
-                    st.dirty_writebacks += ((l2_.meta[s2v].valid & l2_.meta[s2v].dirty) >> vv) & 1;
+                    c_dirty_writebacks += ((l2_.meta[s2v].valid & l2_.meta[s2v].dirty) >> vv) & 1;
                     l2_.set_line(s2v, vv, true, true, t2v);
                 }
             }
@@ -232,6 +231,15 @@ public:
 #endif
         g_hot_path_active = false;
 #endif
+
+        csot::CacheStats st{};
+        st.writes = c_writes;
+        st.reads = n - c_writes;
+        st.l1_hits = c_l1_hits;
+        st.l1_misses = n - c_l1_hits;
+        st.l2_hits = c_l2_hits;
+        st.l2_misses = st.l1_misses - c_l2_hits;
+        st.dirty_writebacks = c_dirty_writebacks;
 
         return st;
     }
