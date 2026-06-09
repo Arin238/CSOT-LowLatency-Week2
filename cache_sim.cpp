@@ -1,5 +1,5 @@
 // ============================================================================
-//  cache_sim.cpp — final optimised version (Agner Fog compliant)
+//  cache_sim.cpp — final portable version (no consteval, runtime tables)
 // ============================================================================
 
 #include "cache_sim.hpp"
@@ -39,7 +39,10 @@ namespace {
 constexpr int log2_of(int v) { int r = 0; while ((1 << r) < v) ++r; return r; }
 
 // ============================================================================
-// Level template – SoA layout, per‑set LRU state stored as uint32_t (age‑based)
+}();
+
+// ============================================================================
+// Level template – SoA layout, per‑set LRU state stored as single uint16_t
 // ============================================================================
 template <int SETS, int WAYS>
 struct Level {
@@ -49,9 +52,9 @@ struct Level {
     static constexpr std::uint64_t INDEX_MASK = SETS - 1;
 
     struct Meta {
-        std::uint8_t valid;   // bitmask: 1 = valid
-        std::uint8_t dirty;   // bitmask: 1 = dirty
-        std::uint32_t lru;    // 4 bits per way, 0 = most recent, 7 = least recent
+        std::uint8_t valid;
+        std::uint8_t dirty;
+        std::uint32_t lru;
     };
 
     alignas(64) std::array<std::uint64_t, SETS * WAYS> tag{};
@@ -62,11 +65,7 @@ struct Level {
         for (int i = 0; i < SETS; ++i) {
             meta[i].valid = 0;
             meta[i].dirty = 0;
-            // Initial LRU: each way has its index as age (0 = most recent, 7 = least recent)
-            std::uint32_t lru = 0;
-            for (int w = 0; w < WAYS; ++w)
-                lru |= static_cast<std::uint32_t>(w) << (w * 4);
-            meta[i].lru = lru;
+            meta[i].lru = 0x76543210;
         }
     }
 
@@ -81,26 +80,24 @@ struct Level {
         const std::size_t base = static_cast<std::size_t>(si) * WAYS;
 #if defined(__AVX2__)
         __m256i key = _mm256_set1_epi64x(t);
-        // Aligned loads – tag[] is alignas(64) and each set starts at 64‑byte boundary
-        __m256i a = _mm256_load_si256(reinterpret_cast<const __m256i*>(&tag[base]));
-        __m256i b = _mm256_load_si256(reinterpret_cast<const __m256i*>(&tag[base + 4]));
-        unsigned m = (unsigned)_mm256_movemask_pd(_mm256_castsi256_pd(_mm256_cmpeq_epi64(a, key)))
-                   | ((unsigned)_mm256_movemask_pd(_mm256_castsi256_pd(_mm256_cmpeq_epi64(b, key))) << 4);
-        _mm256_zeroupper();   // Prevent AVX‑SSE transition penalty (Agner Fog §12.1)
+        __m256i a   = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&tag[base]));
+        __m256i b   = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&tag[base + 4]));
+        unsigned m  = unsigned(_mm256_movemask_pd(_mm256_castsi256_pd(_mm256_cmpeq_epi64(a, key))))
+                    | (unsigned(_mm256_movemask_pd(_mm256_castsi256_pd(_mm256_cmpeq_epi64(b, key)))) << 4);
 #elif defined(__SSE4_1__)
         __m128i key = _mm_set1_epi64x(t);
-        __m128i a = _mm_load_si128(reinterpret_cast<const __m128i*>(&tag[base + 0]));
-        __m128i b = _mm_load_si128(reinterpret_cast<const __m128i*>(&tag[base + 2]));
-        __m128i c = _mm_load_si128(reinterpret_cast<const __m128i*>(&tag[base + 4]));
-        __m128i d = _mm_load_si128(reinterpret_cast<const __m128i*>(&tag[base + 6]));
-        unsigned m = (unsigned)_mm_movemask_pd(_mm_castsi128_pd(_mm_cmpeq_epi64(a, key)))
-                   | ((unsigned)_mm_movemask_pd(_mm_castsi128_pd(_mm_cmpeq_epi64(b, key))) << 2)
-                   | ((unsigned)_mm_movemask_pd(_mm_castsi128_pd(_mm_cmpeq_epi64(c, key))) << 4)
-                   | ((unsigned)_mm_movemask_pd(_mm_castsi128_pd(_mm_cmpeq_epi64(d, key))) << 6);
+        __m128i a = _mm_loadu_si128(reinterpret_cast<const __m128i*>(&tag[base + 0]));
+        __m128i b = _mm_loadu_si128(reinterpret_cast<const __m128i*>(&tag[base + 2]));
+        __m128i c = _mm_loadu_si128(reinterpret_cast<const __m128i*>(&tag[base + 4]));
+        __m128i d = _mm_loadu_si128(reinterpret_cast<const __m128i*>(&tag[base + 6]));
+        unsigned m = unsigned(_mm_movemask_pd(_mm_castsi128_pd(_mm_cmpeq_epi64(a, key))))
+                   | (unsigned(_mm_movemask_pd(_mm_castsi128_pd(_mm_cmpeq_epi64(b, key)))) << 2)
+                   | (unsigned(_mm_movemask_pd(_mm_castsi128_pd(_mm_cmpeq_epi64(c, key)))) << 4)
+                   | (unsigned(_mm_movemask_pd(_mm_castsi128_pd(_mm_cmpeq_epi64(d, key)))) << 6);
 #else
         unsigned m = 0;
         for (int w = 0; w < WAYS; ++w) {
-            m |= static_cast<unsigned>(tag[base + w] == t) << w;
+            m |= unsigned(tag[base + w] == t) << w;
         }
 #endif
         m &= meta[si].valid;
@@ -108,32 +105,26 @@ struct Level {
     }
 
     void touch_mru(int si, int way) {
-        // Ages: 0 = most recent, 7 = least recent.
-        // Update: ONLY ages younger than the touched way increase by 1.
-        std::uint32_t lru = meta[si].lru;
-        unsigned target_age = (lru >> (way * 4)) & 0xF;
-        std::uint32_t new_lru = 0;
+        std::uint32_t lru_val = meta[si].lru;
+        std::uint32_t target_age = (lru_val >> (way * 4)) & 0xF;
+        std::uint32_t targets = target_age * 0x11111111;
         
-        // Unrolled branchless loop over 8 ways.
-        for (int w = 0; w < WAYS; ++w) {
-            unsigned age = (lru >> (w * 4)) & 0xF;
-            age += (age < target_age); // Only increment if younger
-            new_lru |= age << (w * 4);
-        }
+        // SWAR: fields where age < target_age
+        // (8 + age - target) has MSB=1 if age >= target, MSB=0 if age < target
+        std::uint32_t geq_mask = ((lru_val | 0x88888888) - targets) & 0x88888888;
+        std::uint32_t less_mask = (~geq_mask) & 0x88888888;
         
-        // Reset the touched way to age 0
-        new_lru &= ~(0xFu << (way * 4));
-        meta[si].lru = new_lru;
+        lru_val += (less_mask >> 3);
+        lru_val -= (target_age << (way * 4)); // set touched way to 0
+        meta[si].lru = lru_val;
     }
 
     int victim_way(int si) const {
-        unsigned invalid = static_cast<unsigned>(~meta[si].valid) & 0xFF;
-        if (__builtin_expect(invalid, 0)) {
-            return __builtin_ctz(invalid);
-        }
-        // No invalid way – use LRU: find the way with age == 7
-        std::uint32_t lru = meta[si].lru;
-        unsigned victim_mask = (lru + 0x11111111) & 0x88888888;
+        unsigned invalid = static_cast<unsigned>(static_cast<std::uint8_t>(~meta[si].valid));
+        if (invalid) return __builtin_ctz(invalid);
+        
+        // Find the way with age 7
+        std::uint32_t victim_mask = (meta[si].lru + 0x11111111) & 0x88888888;
         return __builtin_ctz(victim_mask) >> 2;
     }
 
@@ -157,7 +148,7 @@ public:
         l2_.init();
     }
 
-    csot::CacheStats run(const csot::MemAccess* __restrict acc, std::size_t n) override {
+    csot::CacheStats run(const csot::MemAccess* acc, std::size_t n) override {
 #ifdef CSOT_CHECK_ALLOCS
         g_hot_path_active = true;
 #ifdef __linux__
@@ -168,8 +159,9 @@ public:
         csot::CacheStats st{};
 
         for (std::size_t i = 0; i < n; ++i) {
-            // Optional prefetch – modern CPUs often do better without (Agner Fog §9.11)
-            // __builtin_prefetch(&acc[i + 16], 0, 0);
+            // Prefetch ~16 elements ahead. 
+            // 0 = Read intention, 0 = No temporal locality (don't pollute L1/L2)
+            __builtin_prefetch(&acc[i + 16], 0, 0);
 
             const csot::MemAccess& a = acc[i];
             const bool wr = (a.is_write != 0);
@@ -188,7 +180,7 @@ public:
             st.l1_hits += l1_hit;
             st.l1_misses += !l1_hit;
 
-            if (__builtin_expect(l1_hit, 1)) {
+            if (l1_hit) {
                 l1_.touch_mru(s1, w1);
                 if (wr) l1_.meta[s1].dirty |= (1 << w1);
                 continue;
