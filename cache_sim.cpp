@@ -1,5 +1,5 @@
 // ============================================================================
-//  cache_sim.cpp — final portable version (no consteval, runtime tables)
+//  cache_sim.cpp — compile‑time LRU tables, C++17 compatible
 // ============================================================================
 
 #include "cache_sim.hpp"
@@ -39,7 +39,7 @@ constexpr int log2_of(int v) { int r = 0; while ((1 << r) < v) ++r; return r; }
 
 // ============================================================================
 // LRU state machine – Lehmer code (0…40319) for 8‑way permutations.
-// Tables are built once at runtime; hot path uses O(1) array lookups.
+// All functions are constexpr – tables built entirely at compile time.
 // ============================================================================
 using Perm = std::array<std::uint8_t, 8>;
 
@@ -74,7 +74,7 @@ constexpr Perm next_perm(const Perm& p, int way) {
     int pos = -1;
     for (int i = 0; i < 8; ++i)
         if (np[i] == way) { pos = i; break; }
-    if (pos == -1) pos = 7;   // shouldn't happen
+    if (pos == -1) pos = 7;
     for (int i = pos; i > 0; --i)
         np[i] = np[i - 1];
     np[0] = static_cast<std::uint8_t>(way);
@@ -86,6 +86,7 @@ struct LruTables {
     std::array<std::array<std::uint16_t, 8>, 40320> next_state{};
 };
 
+// Build tables at compile time – the result is stored in read‑only data.
 constexpr LruTables build_lru_tables() {
     LruTables tables{};
     for (std::uint16_t state = 0; state < 40320; ++state) {
@@ -97,7 +98,7 @@ constexpr LruTables build_lru_tables() {
     return tables;
 }
 
-constexpr LruTables kLru = build_lru_tables();
+constexpr LruTables kLru = build_lru_tables();   // fully evaluated at compile time
 
 constexpr std::uint16_t get_initial_state() {
     Perm id{};
