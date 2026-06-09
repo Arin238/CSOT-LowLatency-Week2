@@ -215,9 +215,6 @@ public:
         csot::CacheStats st{};
 
         for (std::size_t i = 0; i < n; ++i) {
-            // Prefetch ~16 elements ahead. 
-            // 0 = Read intention, 0 = No temporal locality (don't pollute L1/L2)
-            __builtin_prefetch(&acc[i + 16], 0, 0);
 
             const csot::MemAccess& a = acc[i];
             const bool wr = (a.is_write != 0);
