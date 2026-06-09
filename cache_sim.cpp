@@ -1,4 +1,4 @@
-// ============================================================================
+/ ============================================================================
 //  cache_sim.cpp — final branch‑free LRU, SIMD tag scan, zero alloc
 // ============================================================================
 
@@ -97,7 +97,11 @@ namespace TableLRU {
             for (int i = 0; i < 8; ++i) inv[perm[i]] = i;
 
             for (int w = 0; w < 8; ++w) {
+                std::uint8_t next_perm[8];
                 const int pos = inv[w];
+                // Shift elements before pos right by 1
+                for (int i = 0; i < pos; ++i) next_perm[i] = perm[i];
+                next_perm[pos] = w;          // place w at front? Wait, the classic LRU update:
                 // Actually the permutation encodes MRU...LRU order: index 0 is MRU, index 7 is LRU.
                 // On access to way w, move w to front (MRU) and shift the prefix.
                 // So we need to place w at position 0, and shift 0..pos-1 to 1..pos.
@@ -168,7 +172,8 @@ struct Level {
     int find_way(int si, std::uint64_t t) const {
         const std::size_t base = static_cast<std::size_t>(si) * WAYS;
 #if defined(__AVX2__)
-        __m256i key = _mm256_set1_epi64x(t);
+        __m128i tmp = _mm_cvtsi64_si128(t);
+        __m256i key = _mm256_broadcastq_epi64(tmp);
         __m256i a = _mm256_load_si256(reinterpret_cast<const __m256i*>(&tag[base]));
         __m256i b = _mm256_load_si256(reinterpret_cast<const __m256i*>(&tag[base + 4]));
         unsigned m = (unsigned)_mm256_movemask_pd(_mm256_castsi256_pd(_mm256_cmpeq_epi64(a, key)))
@@ -264,7 +269,6 @@ public:
         std::uint64_t c_l2_hits = 0;
         std::uint64_t c_dirty_writebacks = 0;
 
-#pragma GCC unroll 2
         for (std::size_t i = 0; i < n; ++i) {
             // Optional prefetch – test with your trace; often redundant on modern CPUs
             // __builtin_prefetch(&acc[i + 16], 0, 0);
