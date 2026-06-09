@@ -37,81 +37,6 @@ void operator delete(void* p, std::size_t) noexcept { std::free(p); }
 namespace {
 
 constexpr int log2_of(int v) { int r = 0; while ((1 << r) < v) ++r; return r; }
-
-// ============================================================================
-// LRU state machine – Lehmer code (0…40319) for 8‑way permutations.
-// Tables are built once at runtime; hot path uses O(1) array lookups.
-// ============================================================================
-using Perm = std::array<std::uint8_t, 8>;
-
-static std::uint16_t encode_fast(const Perm& p) {
-    constexpr int kFact[7] = {5040, 720, 120, 24, 6, 2, 1};
-    std::uint8_t seen = 0;
-    std::uint16_t code = 0;
-    for (int i = 0; i < 7; ++i) {
-        // rank among remaining = (# values < p[i]) − (# of those already placed)
-        const int rank = p[i] - __builtin_popcount(seen & ((1u << p[i]) - 1u));
-        seen |= (1u << p[i]);
-        code += static_cast<std::uint16_t>(rank * kFact[i]);
-    }
-    return code;
-}
-
-static Perm decode_fast(std::uint16_t code) {
-    constexpr int kFact[8] = {5040, 720, 120, 24, 6, 2, 1, 1};
-    Perm p{};
-    std::uint8_t avail = 0xFF;          // bits 0-7 = elements {0..7} still available
-    for (int i = 0; i < 8; ++i) {
-        const int idx  = code / kFact[i];
-        code           %= kFact[i];
-        // idx-th set bit: clear idx lowest set bits, then ctz
-        std::uint8_t tmp = avail;
-        for (int k = 0; k < idx; ++k) tmp &= tmp - 1;
-        p[i]  = static_cast<std::uint8_t>(__builtin_ctz(tmp));
-        avail &= ~(1u << p[i]);
-    }
-    return p;
-}
-
-struct LruTables {
-    std::array<std::uint8_t, 40320> victim{};
-    std::array<std::array<std::uint16_t, 8>, 40320> next_state{};
-};
-
-static const LruTables* build_lru_tables() {
-    static LruTables tables;
-    static bool init = false;
-    if (!init) {
-        for (std::uint16_t state = 0; state < 40320; ++state) {
-            const Perm p = decode_fast(state);
-            tables.victim[state] = p[7];
-
-            // build inverse once per state — O(1) position lookup below
-            Perm inv{};
-            for (int i = 0; i < 8; ++i)
-                inv[p[i]] = static_cast<std::uint8_t>(i);
-
-            for (int w = 0; w < 8; ++w) {
-                Perm np = p;
-                const int pos = inv[w];                      // O(1), was O(8) scan
-                for (int i = pos; i > 0; --i) np[i] = np[i - 1];
-                np[0] = static_cast<std::uint8_t>(w);
-                tables.next_state[state][w] = encode_fast(np); // O(n), was O(n²)
-            }
-        }
-        init = true;
-    }
-    return &tables;
-}
-
-inline const LruTables* kLru = build_lru_tables();
-
-const std::uint16_t kInitialLruState = []() {
-    Perm id;
-    for (int i = 0; i < 8; ++i) id[i] = static_cast<std::uint8_t>(i);
-    return encode_fast(id);
-}();
-
 // ============================================================================
 // Level template – SoA layout, per‑set LRU state stored as single uint16_t
 // ============================================================================
@@ -125,7 +50,7 @@ struct Level {
     struct Meta {
         std::uint8_t valid;
         std::uint8_t dirty;
-        std::uint16_t lru;
+        std::uint32_t lru;
     };
 
     alignas(64) std::array<std::uint64_t, SETS * WAYS> tag{};
@@ -136,7 +61,7 @@ struct Level {
         for (int i = 0; i < SETS; ++i) {
             meta[i].valid = 0;
             meta[i].dirty = 0;
-            meta[i].lru = kInitialLruState;
+            meta[i].lru = 0x76543210;
         }
     }
 
@@ -176,12 +101,27 @@ struct Level {
     }
 
     void touch_mru(int si, int way) {
-        meta[si].lru = kLru->next_state[meta[si].lru][way];
+        std::uint32_t lru_val = meta[si].lru;
+        std::uint32_t target_age = (lru_val >> (way * 4)) & 0xF;
+        std::uint32_t targets = target_age * 0x11111111;
+        
+        // SWAR: fields where age < target_age
+        // (8 + age - target) has MSB=1 if age >= target, MSB=0 if age < target
+        std::uint32_t geq_mask = ((lru_val | 0x88888888) - targets) & 0x88888888;
+        std::uint32_t less_mask = (~geq_mask) & 0x88888888;
+        
+        lru_val += (less_mask >> 3);
+        lru_val -= (target_age << (way * 4)); // set touched way to 0
+        meta[si].lru = lru_val;
     }
 
     int victim_way(int si) const {
         unsigned invalid = static_cast<unsigned>(static_cast<std::uint8_t>(~meta[si].valid));
-        return invalid ? __builtin_ctz(invalid) : kLru->victim[meta[si].lru];
+        if (invalid) return __builtin_ctz(invalid);
+        
+        // Find the way with age 7
+        std::uint32_t victim_mask = (meta[si].lru + 0x11111111) & 0x88888888;
+        return __builtin_ctz(victim_mask) >> 2;
     }
 
     void set_line(int si, int way, bool v, bool d, std::uint64_t t) {
@@ -189,7 +129,7 @@ struct Level {
         if (v) meta[si].valid |= (1 << way); else meta[si].valid &= ~(1 << way);
         if (d) meta[si].dirty |= (1 << way); else meta[si].dirty &= ~(1 << way);
         tag[base + way] = t;
-        meta[si].lru = kLru->next_state[meta[si].lru][way];
+        touch_mru(si, way);
     }
 };
 
