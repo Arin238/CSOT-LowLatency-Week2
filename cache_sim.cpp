@@ -79,7 +79,7 @@ struct Level {
     // WAYS is a compile-time constant → the loop fully unrolls.
     // Two SoA reads per iteration: valid[] (uint8_t, 8 entries = 8 B per set)
     // and tag[] (uint64_t, 8 entries = 64 B = 1 cache line per set).
-    [[gnu::always_inline]] int find_way(int si, std::uint64_t t) const {
+    int find_way(int si, std::uint64_t t) const {
         const std::size_t base = static_cast<std::size_t>(si) * WAYS;
         for (int w = 0; w < WAYS; ++w)
             if (valid[base + w] && tag[base + w] == t) return w;
@@ -88,7 +88,7 @@ struct Level {
 
     // With WAYS=8 and uint8_t lru[], the 8-byte window for a set fits in one
     // 64-bit register. memmove of ≤7 bytes compiles to a handful of shifts.
-    [[gnu::always_inline]] void touch_mru(int si, int way) {
+    void touch_mru(int si, int way) {
         const std::size_t  base = static_cast<std::size_t>(si) * WAYS;
         const std::uint8_t w8   = static_cast<std::uint8_t>(way);
         int pos = -1;
@@ -99,7 +99,7 @@ struct Level {
         lru[base] = w8;
     }
 
-    [[gnu::always_inline]] int victim_way(int si) const {
+    int victim_way(int si) const {
         const std::size_t base = static_cast<std::size_t>(si) * WAYS;
         for (int w = 0; w < WAYS; ++w)
             if (!valid[base + w]) return w;
