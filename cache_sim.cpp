@@ -12,6 +12,9 @@
 #include <array>
 #include <cstring>
 #include <immintrin.h>
+#ifdef __linux__
+#include <sys/mman.h>
+#endif
 
 #ifdef CSOT_CHECK_ALLOCS
 #include <new>
@@ -70,12 +73,20 @@ namespace TableLRU {
         }
     }
 
-    std::uint16_t next_state[40320][8];
-    std::uint8_t victim_way[40320];
+    alignas(4096) std::uint16_t next_state[40320][8];
+    alignas(4096) std::uint8_t victim_way[40320];
     bool initialized = false;
 
     void init() {
         if (initialized) return;
+#ifdef __linux__
+        // Hint the kernel to use 2MB transparent huge pages if available
+        madvise(next_state, sizeof(next_state), MADV_HUGEPAGE);
+        madvise(victim_way, sizeof(victim_way), MADV_HUGEPAGE);
+        // Lock the tables so the kernel never swaps them
+        mlock(next_state, sizeof(next_state));
+        mlock(victim_way, sizeof(victim_way));
+#endif
         for (std::uint16_t state = 0; state < 40320; ++state) {
             std::uint8_t perm[8];
             decode_fast(state, perm);

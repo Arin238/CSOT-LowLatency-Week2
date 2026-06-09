@@ -20,8 +20,10 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
-#include <fstream>
-#include <vector>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
 
 int main(int argc, char** argv) {
     if (argc != 2) {
@@ -32,25 +34,40 @@ int main(int argc, char** argv) {
     // ---- Load the trace -----------------------------------------------------
     // The on-disk format is a raw array of csot::MemAccess records (16 bytes
     // each), little-endian, no header. See CACHE_SPEC.md §2.
-    std::ifstream in(argv[1], std::ios::binary | std::ios::ate);
-    if (!in) {
+    int fd = open(argv[1], O_RDONLY);
+    if (fd < 0) {
         std::fprintf(stderr, "error: cannot open trace '%s'\n", argv[1]);
         return 2;
     }
-    const std::streamoff bytes = in.tellg();
-    if (bytes < 0 || (bytes % static_cast<std::streamoff>(sizeof(csot::MemAccess))) != 0) {
-        std::fprintf(stderr, "error: trace size %lld is not a multiple of %zu\n",
-                     static_cast<long long>(bytes), sizeof(csot::MemAccess));
+    struct stat st;
+    if (fstat(fd, &st) < 0) {
+        std::fprintf(stderr, "error: cannot stat trace '%s'\n", argv[1]);
+        close(fd);
         return 2;
     }
-    in.seekg(0);
+    const std::size_t bytes = st.st_size;
+    if (bytes == 0 || (bytes % sizeof(csot::MemAccess)) != 0) {
+        std::fprintf(stderr, "error: trace size %zu is not a multiple of %zu\n",
+                     bytes, sizeof(csot::MemAccess));
+        close(fd);
+        return 2;
+    }
 
-    const std::size_t n = static_cast<std::size_t>(bytes) / sizeof(csot::MemAccess);
-    std::vector<csot::MemAccess> trace(n);
-    if (n > 0 && !in.read(reinterpret_cast<char*>(trace.data()), bytes)) {
-        std::fprintf(stderr, "error: short read on trace '%s'\n", argv[1]);
+    const std::size_t n = bytes / sizeof(csot::MemAccess);
+    void* mapped_data = mmap(nullptr, bytes, PROT_READ, MAP_PRIVATE | MAP_POPULATE, fd, 0);
+    if (mapped_data == MAP_FAILED) {
+        std::fprintf(stderr, "error: mmap failed on trace '%s'\n", argv[1]);
+        close(fd);
         return 2;
     }
+    close(fd); // safe to close fd after mmap
+
+#ifdef __linux__
+    madvise(mapped_data, bytes, MADV_SEQUENTIAL | MADV_WILLNEED | MADV_HUGEPAGE);
+    mlock(mapped_data, bytes); // Lock the trace memory so it's immune to swapping
+#endif
+
+    const csot::MemAccess* trace = static_cast<const csot::MemAccess*>(mapped_data);
 
     // ---- Build and warm up the simulator ------------------------------------
     csot::CacheSim* sim = create_cache_sim();
@@ -62,7 +79,7 @@ int main(int argc, char** argv) {
 
     // ---- Time exactly run(), like the judge does ----------------------------
     const auto t0 = std::chrono::steady_clock::now();
-    const csot::CacheStats s = sim->run(trace.data(), trace.size());
+    const csot::CacheStats s = sim->run(trace, n);
     const auto t1 = std::chrono::steady_clock::now();
 
     const double elapsed_ns =
