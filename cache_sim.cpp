@@ -1,5 +1,5 @@
 // ============================================================================
-//  cache_sim.cpp — compile‑time LRU tables, C++17 compatible
+//  cache_sim.cpp — final portable version (no consteval, runtime tables)
 // ============================================================================
 
 #include "cache_sim.hpp"
@@ -39,11 +39,11 @@ constexpr int log2_of(int v) { int r = 0; while ((1 << r) < v) ++r; return r; }
 
 // ============================================================================
 // LRU state machine – Lehmer code (0…40319) for 8‑way permutations.
-// All functions are constexpr – tables built entirely at compile time.
+// Tables are built once at runtime; hot path uses O(1) array lookups.
 // ============================================================================
 using Perm = std::array<std::uint8_t, 8>;
 
-constexpr std::uint16_t encode_perm(const Perm& p) {
+std::uint16_t encode_perm(const Perm& p) {
     std::uint16_t code = 0;
     const int fact[8] = {1, 1, 2, 6, 24, 120, 720, 5040};
     for (int i = 0; i < 7; ++i) {
@@ -55,7 +55,7 @@ constexpr std::uint16_t encode_perm(const Perm& p) {
     return code;
 }
 
-constexpr Perm decode_perm(std::uint16_t code) {
+Perm decode_perm(std::uint16_t code) {
     Perm p{};
     const int fact[8] = {1, 1, 2, 6, 24, 120, 720, 5040};
     std::uint8_t available[8] = {0, 1, 2, 3, 4, 5, 6, 7};
@@ -69,12 +69,12 @@ constexpr Perm decode_perm(std::uint16_t code) {
     return p;
 }
 
-constexpr Perm next_perm(const Perm& p, int way) {
+Perm next_perm(const Perm& p, int way) {
     Perm np = p;
     int pos = -1;
     for (int i = 0; i < 8; ++i)
         if (np[i] == way) { pos = i; break; }
-    if (pos == -1) pos = 7;
+    if (pos == -1) pos = 7;   // shouldn't happen
     for (int i = pos; i > 0; --i)
         np[i] = np[i - 1];
     np[0] = static_cast<std::uint8_t>(way);
@@ -86,26 +86,28 @@ struct LruTables {
     std::array<std::array<std::uint16_t, 8>, 40320> next_state{};
 };
 
-// Build tables at compile time – the result is stored in read‑only data.
-constexpr LruTables build_lru_tables() {
-    LruTables tables{};
-    for (std::uint16_t state = 0; state < 40320; ++state) {
-        Perm p = decode_perm(state);
-        tables.victim[state] = p[7];
-        for (int w = 0; w < 8; ++w)
-            tables.next_state[state][w] = encode_perm(next_perm(p, w));
+static const LruTables* build_lru_tables() {
+    static LruTables tables;
+    static bool init = false;
+    if (!init) {
+        for (std::uint16_t state = 0; state < 40320; ++state) {
+            Perm p = decode_perm(state);
+            tables.victim[state] = p[7];
+            for (int w = 0; w < 8; ++w)
+                tables.next_state[state][w] = encode_perm(next_perm(p, w));
+        }
+        init = true;
     }
-    return tables;
+    return &tables;
 }
 
-constexpr LruTables kLru = build_lru_tables();   // fully evaluated at compile time
+inline const LruTables* kLru = build_lru_tables();
 
-constexpr std::uint16_t get_initial_state() {
-    Perm id{};
+const std::uint16_t kInitialLruState = []() {
+    Perm id;
     for (int i = 0; i < 8; ++i) id[i] = static_cast<std::uint8_t>(i);
     return encode_perm(id);
-}
-constexpr std::uint16_t kInitialLruState = get_initial_state();
+}();
 
 // ============================================================================
 // Level template – SoA layout, per‑set LRU state stored as single uint16_t
@@ -144,14 +146,14 @@ struct Level {
     }
 
     void touch_mru(int si, int way) {
-        lru[si] = kLru.next_state[lru[si]][way];
+        lru[si] = kLru->next_state[lru[si]][way];
     }
 
     int victim_way(int si) const {
         const std::size_t base = static_cast<std::size_t>(si) * WAYS;
         for (int w = 0; w < WAYS; ++w)
             if (!valid[base + w]) return w;
-        return kLru.victim[lru[si]];
+        return kLru->victim[lru[si]];
     }
 
     void set_line(int si, int way, bool v, bool d, std::uint64_t t) {
@@ -159,7 +161,7 @@ struct Level {
         valid[base + way] = v ? 1 : 0;
         dirty[base + way] = d ? 1 : 0;
         tag[base + way] = t;
-        lru[si] = kLru.next_state[lru[si]][way];
+        lru[si] = kLru->next_state[lru[si]][way];
     }
 };
 
