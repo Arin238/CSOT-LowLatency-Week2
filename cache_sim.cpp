@@ -66,17 +66,50 @@ namespace TableLRU {
         return code;
     }
 
-    // Fast Lehmer decoding
+    // Fast Lehmer decoding completely unrolled to eliminate idivl
+    // Using explicit constants so the compiler uses fast 'imul' instructions instead of 'idivl'
+    // Pure standard C++ without lambdas or BMI intrinsics to guarantee 100% linker compatibility.
     static void decode_fast(std::uint16_t code, std::uint8_t p[8]) {
         std::uint8_t avail = 0xFF;
-        for (int i = 0; i < 8; ++i) {
-            const int idx = code / fact[7 - i];
-            code %= fact[7 - i];
-            std::uint8_t tmp = avail;
-            for (int k = 0; k < idx; ++k) tmp &= tmp - 1;
-            p[i] = static_cast<std::uint8_t>(__builtin_ctz(tmp));
-            avail &= ~(1u << p[i]);
-        }
+        int idx;
+        std::uint8_t tmp;
+
+        idx = code / 5040; code %= 5040;
+        tmp = avail; for (int k = 0; k < idx; ++k) tmp &= tmp - 1;
+        p[0] = static_cast<std::uint8_t>(__builtin_ctz(tmp));
+        avail &= ~(1u << p[0]);
+
+        idx = code / 720; code %= 720;
+        tmp = avail; for (int k = 0; k < idx; ++k) tmp &= tmp - 1;
+        p[1] = static_cast<std::uint8_t>(__builtin_ctz(tmp));
+        avail &= ~(1u << p[1]);
+
+        idx = code / 120; code %= 120;
+        tmp = avail; for (int k = 0; k < idx; ++k) tmp &= tmp - 1;
+        p[2] = static_cast<std::uint8_t>(__builtin_ctz(tmp));
+        avail &= ~(1u << p[2]);
+
+        idx = code / 24; code %= 24;
+        tmp = avail; for (int k = 0; k < idx; ++k) tmp &= tmp - 1;
+        p[3] = static_cast<std::uint8_t>(__builtin_ctz(tmp));
+        avail &= ~(1u << p[3]);
+
+        idx = code / 6; code %= 6;
+        tmp = avail; for (int k = 0; k < idx; ++k) tmp &= tmp - 1;
+        p[4] = static_cast<std::uint8_t>(__builtin_ctz(tmp));
+        avail &= ~(1u << p[4]);
+
+        idx = code / 2; code %= 2;
+        tmp = avail; for (int k = 0; k < idx; ++k) tmp &= tmp - 1;
+        p[5] = static_cast<std::uint8_t>(__builtin_ctz(tmp));
+        avail &= ~(1u << p[5]);
+
+        idx = code;
+        tmp = avail; for (int k = 0; k < idx; ++k) tmp &= tmp - 1;
+        p[6] = static_cast<std::uint8_t>(__builtin_ctz(tmp));
+        avail &= ~(1u << p[6]);
+
+        p[7] = static_cast<std::uint8_t>(__builtin_ctz(avail));
     }
 
     alignas(4096) std::uint16_t next_state[40320][8];
