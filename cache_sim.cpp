@@ -70,11 +70,11 @@ struct Level {
     static constexpr int INDEX_BITS = log2_of(SETS);
     static constexpr std::uint64_t INDEX_MASK = SETS - 1;
 
-    // SoA flat arrays — std::array, no heap indirection on hot path
-    std::array<std::uint64_t, SETS * WAYS> tag{};
-    std::array<std::uint8_t,  SETS * WAYS> valid{};
-    std::array<std::uint8_t,  SETS * WAYS> dirty{};
-    std::array<std::uint8_t,  SETS * WAYS> lru{};
+    // SoA flat arrays — 64-bit aligned elements for maximum throughput
+    alignas(64) std::array<std::uint64_t, SETS * WAYS> tag{};
+    alignas(64) std::array<std::uint64_t, SETS * WAYS> valid{};
+    alignas(64) std::array<std::uint64_t, SETS * WAYS> dirty{};
+    alignas(64) std::array<std::uint64_t, SETS * WAYS> lru{};
 
     void init() {
         tag.fill(0);
@@ -83,7 +83,7 @@ struct Level {
         // Initialize LRU: way 0 = MRU, way WAYS-1 = LRU
         for (int si = 0; si < SETS; ++si) {
             for (int w = 0; w < WAYS; ++w) {
-                lru[si * WAYS + w] = static_cast<std::uint8_t>(w);
+                lru[si * WAYS + w] = static_cast<std::uint64_t>(w);
             }
         }
     }
@@ -114,11 +114,11 @@ struct Level {
         std::size_t base = static_cast<std::size_t>(set_idx) * WAYS;
         int pos = -1;
         for (int i = 0; i < WAYS; ++i) {
-            if (lru[base + i] == static_cast<std::uint8_t>(way)) { pos = i; break; }
+            if (lru[base + i] == static_cast<std::uint64_t>(way)) { pos = i; break; }
         }
         if (pos <= 0) return;
         for (int i = pos; i > 0; --i) lru[base + i] = lru[base + i - 1];
-        lru[base] = static_cast<std::uint8_t>(way);
+        lru[base] = static_cast<std::uint64_t>(way);
     }
 
     // Pick an invalid way if any, else return the LRU way
@@ -131,7 +131,7 @@ struct Level {
     }
 
     // Install a line (valid/dirty/tag) and mark MRU
-    void set_line(int set_idx, int way, bool v, std::uint8_t d, std::uint64_t t) {
+    void set_line(int set_idx, int way, bool v, std::uint64_t d, std::uint64_t t) {
         std::size_t base = static_cast<std::size_t>(set_idx) * WAYS;
         valid[base + way] = v ? 1 : 0;
         dirty[base + way] = d ? 1 : 0;
@@ -139,14 +139,14 @@ struct Level {
         // update MRU
         int pos = -1;
         for (int i = 0; i < WAYS; ++i) {
-            if (lru[base + i] == static_cast<std::uint8_t>(way)) { pos = i; break; }
+            if (lru[base + i] == static_cast<std::uint64_t>(way)) { pos = i; break; }
         }
         if (pos > 0) {
             for (int i = pos; i > 0; --i) lru[base + i] = lru[base + i - 1];
-            lru[base] = static_cast<std::uint8_t>(way);
+            lru[base] = static_cast<std::uint64_t>(way);
         } else if (pos == -1) {
             for (int i = WAYS - 1; i > 0; --i) lru[base + i] = lru[base + i - 1];
-            lru[base] = static_cast<std::uint8_t>(way);
+            lru[base] = static_cast<std::uint64_t>(way);
         }
     }
 };
