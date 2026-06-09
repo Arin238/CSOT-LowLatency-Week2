@@ -1,4 +1,4 @@
-/ ============================================================================
+// ============================================================================
 //  cache_sim.cpp — final branch‑free LRU, SIMD tag scan, zero alloc
 // ============================================================================
 
@@ -97,11 +97,7 @@ namespace TableLRU {
             for (int i = 0; i < 8; ++i) inv[perm[i]] = i;
 
             for (int w = 0; w < 8; ++w) {
-                std::uint8_t next_perm[8];
                 const int pos = inv[w];
-                // Shift elements before pos right by 1
-                for (int i = 0; i < pos; ++i) next_perm[i] = perm[i];
-                next_perm[pos] = w;          // place w at front? Wait, the classic LRU update:
                 // Actually the permutation encodes MRU...LRU order: index 0 is MRU, index 7 is LRU.
                 // On access to way w, move w to front (MRU) and shift the prefix.
                 // So we need to place w at position 0, and shift 0..pos-1 to 1..pos.
