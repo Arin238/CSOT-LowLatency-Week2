@@ -37,10 +37,6 @@ void operator delete(void* p, std::size_t) noexcept { std::free(p); }
 namespace {
 
 constexpr int log2_of(int v) { int r = 0; while ((1 << r) < v) ++r; return r; }
-
-// ============================================================================
-}();
-
 // ============================================================================
 // Level template – SoA layout, per‑set LRU state stored as single uint16_t
 // ============================================================================
