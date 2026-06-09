@@ -43,7 +43,7 @@ constexpr int log2_of(int v) { int r = 0; while ((1 << r) < v) ++r; return r; }
 // ============================================================================
 using Perm = std::array<std::uint8_t, 8>;
 
-std::uint16_t encode_perm(const Perm& p) {
+consteval std::uint16_t encode_perm(const Perm& p) {
     std::uint16_t code = 0;
     const int fact[8] = {1, 1, 2, 6, 24, 120, 720, 5040};
     for (int i = 0; i < 7; ++i) {
@@ -55,7 +55,7 @@ std::uint16_t encode_perm(const Perm& p) {
     return code;
 }
 
-Perm decode_perm(std::uint16_t code) {
+consteval Perm decode_perm(std::uint16_t code) {
     Perm p{};
     const int fact[8] = {1, 1, 2, 6, 24, 120, 720, 5040};
     std::uint8_t available[8] = {0, 1, 2, 3, 4, 5, 6, 7};
@@ -69,7 +69,7 @@ Perm decode_perm(std::uint16_t code) {
     return p;
 }
 
-Perm next_perm(const Perm& p, int way) {
+consteval Perm next_perm(const Perm& p, int way) {
     Perm np = p;
     int pos = -1;
     for (int i = 0; i < 8; ++i)
@@ -86,28 +86,25 @@ struct LruTables {
     std::array<std::array<std::uint16_t, 8>, 40320> next_state{};
 };
 
-static const LruTables* build_lru_tables() {
-    static LruTables tables;
-    static bool init = false;
-    if (!init) {
-        for (std::uint16_t state = 0; state < 40320; ++state) {
-            Perm p = decode_perm(state);
-            tables.victim[state] = p[7];
-            for (int w = 0; w < 8; ++w)
-                tables.next_state[state][w] = encode_perm(next_perm(p, w));
-        }
-        init = true;
+consteval LruTables build_lru_tables() {
+    LruTables tables{};
+    for (std::uint16_t state = 0; state < 40320; ++state) {
+        Perm p = decode_perm(state);
+        tables.victim[state] = p[7];
+        for (int w = 0; w < 8; ++w)
+            tables.next_state[state][w] = encode_perm(next_perm(p, w));
     }
-    return &tables;
+    return tables;
 }
 
-inline const LruTables* kLru = build_lru_tables();
+constexpr LruTables kLru = build_lru_tables();
 
-const std::uint16_t kInitialLruState = []() {
-    Perm id;
+consteval std::uint16_t get_initial_state() {
+    Perm id{};
     for (int i = 0; i < 8; ++i) id[i] = static_cast<std::uint8_t>(i);
     return encode_perm(id);
-}();
+}
+constexpr std::uint16_t kInitialLruState = get_initial_state();
 
 // ============================================================================
 // Level template – SoA layout, per‑set LRU state stored as single uint16_t
@@ -146,14 +143,14 @@ struct Level {
     }
 
     void touch_mru(int si, int way) {
-        lru[si] = kLru->next_state[lru[si]][way];
+        lru[si] = kLru.next_state[lru[si]][way];
     }
 
     int victim_way(int si) const {
         const std::size_t base = static_cast<std::size_t>(si) * WAYS;
         for (int w = 0; w < WAYS; ++w)
             if (!valid[base + w]) return w;
-        return kLru->victim[lru[si]];
+        return kLru.victim[lru[si]];
     }
 
     void set_line(int si, int way, bool v, bool d, std::uint64_t t) {
@@ -161,7 +158,7 @@ struct Level {
         valid[base + way] = v ? 1 : 0;
         dirty[base + way] = d ? 1 : 0;
         tag[base + way] = t;
-        lru[si] = kLru->next_state[lru[si]][way];
+        lru[si] = kLru.next_state[lru[si]][way];
     }
 };
 
