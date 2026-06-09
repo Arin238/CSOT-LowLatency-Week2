@@ -41,43 +41,68 @@ void operator delete(void* p, std::size_t) noexcept { std::free(p); }
 
 #ifdef USE_TABLE_LRU
 namespace TableLRU {
-    std::uint16_t next_state[40320][8];
-    std::uint8_t victim_way[40320];
-    bool initialized = false;
+    // Precomputed factorials for Lehmer code
+    constexpr int fact[8] = {1, 1, 2, 6, 24, 120, 720, 5040};
+    constexpr int kFact[7] = {5040, 720, 120, 24, 6, 2, 1}; // for encode_fast
 
-    int encode(int p[8]) {
-        int code = 0;
-        int fact[8] = {1, 1, 2, 6, 24, 120, 720, 5040};
-        for (int i = 0; i < 8; ++i) {
-            int less = 0;
-            for (int j = i + 1; j < 8; ++j) {
-                if (p[j] < p[i]) less++;
-            }
-            code += less * fact[7 - i];
+    // Fast Lehmer encoding (same as earlier encode_fast)
+    static std::uint16_t encode_fast(const std::uint8_t p[8]) {
+        std::uint8_t seen = 0;
+        std::uint16_t code = 0;
+        for (int i = 0; i < 7; ++i) {
+            const int rank = p[i] - __builtin_popcount(seen & ((1u << p[i]) - 1u));
+            seen |= (1u << p[i]);
+            code += static_cast<std::uint16_t>(rank * kFact[i]);
         }
         return code;
     }
 
+    // Fast Lehmer decoding
+    static void decode_fast(std::uint16_t code, std::uint8_t p[8]) {
+        std::uint8_t avail = 0xFF;
+        for (int i = 0; i < 8; ++i) {
+            const int idx = code / fact[7 - i];
+            code %= fact[7 - i];
+            std::uint8_t tmp = avail;
+            for (int k = 0; k < idx; ++k) tmp &= tmp - 1;
+            p[i] = static_cast<std::uint8_t>(__builtin_ctz(tmp));
+            avail &= ~(1u << p[i]);
+        }
+    }
+
+    std::uint16_t next_state[40320][8];
+    std::uint8_t victim_way[40320];
+    bool initialized = false;
+
     void init() {
         if (initialized) return;
+        for (std::uint16_t state = 0; state < 40320; ++state) {
+            std::uint8_t perm[8];
+            decode_fast(state, perm);
+            victim_way[state] = perm[7];
+
+            // Build inverse mapping for O(1) position lookup
+            std::uint8_t inv[8];
+            for (int i = 0; i < 8; ++i) inv[perm[i]] = i;
+
+            for (int w = 0; w < 8; ++w) {
+                std::uint8_t next_perm[8];
+                const int pos = inv[w];
+                // Shift elements before pos right by 1
+                for (int i = 0; i < pos; ++i) next_perm[i] = perm[i];
+                next_perm[pos] = w;          // place w at front? Wait, the classic LRU update:
+                // Actually the permutation encodes MRU...LRU order: index 0 is MRU, index 7 is LRU.
+                // On access to way w, move w to front (MRU) and shift the prefix.
+                // So we need to place w at position 0, and shift 0..pos-1 to 1..pos.
+                // The code below does that correctly.
+                std::uint8_t tmp[8];
+                tmp[0] = w;
+                for (int i = 0; i < pos; ++i) tmp[i + 1] = perm[i];
+                for (int i = pos + 1; i < 8; ++i) tmp[i] = perm[i];
+                next_state[state][w] = encode_fast(tmp);
+            }
+        }
         initialized = true;
-        int p[8] = {0, 1, 2, 3, 4, 5, 6, 7};
-        do {
-            int id = encode(p);
-            for (int w = 0; w < 8; ++w) {
-                if (p[w] == 7) victim_way[id] = w;
-            }
-            for (int w = 0; w < 8; ++w) {
-                int target = p[w];
-                int next_p[8];
-                for (int i = 0; i < 8; ++i) {
-                    if (p[i] < target) next_p[i] = p[i] + 1;
-                    else if (p[i] > target) next_p[i] = p[i];
-                    else next_p[i] = 0;
-                }
-                next_state[id][w] = encode(next_p);
-            }
-        } while (std::next_permutation(p, p + 8));
     }
 }
 #endif
