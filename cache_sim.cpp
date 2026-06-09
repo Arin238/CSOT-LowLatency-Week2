@@ -108,21 +108,19 @@ struct Level {
 
     // Branch‑free, table‑free LRU update using SWAR bitwise ops
     void touch_mru(int si, int way) {
-        // Ages: 0 = most recent, 7 = least recent.
-        // Algorithm:
-        //   1. Add 1 to every nibble → inc = lru + 0x11111111
-        //   2. Detect nibbles that overflowed (became 8..15): overflow = inc & 0x88888888
-        //   3. Clamp overflowed nibbles to 7, keep incremented others:
-        //        clamped = (inc & ~overflow) | ((overflow >> 3) * 7)
-        //   4. Set the touched way's nibble to 0:
-        //        clamped &= ~(0xF << (way * 4))
-        //   5. Store back.
-        std::uint32_t lru = meta[si].lru;
-        std::uint32_t inc = lru + 0x11111111;
-        std::uint32_t overflow = inc & 0x88888888;
-        std::uint32_t clamped = (inc & ~overflow) | ((overflow >> 3) * 7);
-        clamped &= ~(0xF << (way * 4));
-        meta[si].lru = clamped;
+        std::uint32_t lru_val = meta[si].lru;
+        std::uint32_t target_age = (lru_val >> (way * 4)) & 0xF;
+        std::uint32_t targets = target_age * 0x11111111;
+        
+        // Find fields where age < target_age
+        // (8 + age - target) has MSB=1 if age >= target, MSB=0 if age < target
+        std::uint32_t geq_mask = ((lru_val | 0x88888888) - targets) & 0x88888888;
+        std::uint32_t less_mask = (~geq_mask) & 0x88888888;
+        
+        // ONLY increment ages that were younger than the touched way!
+        lru_val += (less_mask >> 3);
+        lru_val -= (target_age << (way * 4)); // set touched way to exactly 0
+        meta[si].lru = lru_val;
     }
 
     int victim_way(int si) const {
