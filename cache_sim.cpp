@@ -154,14 +154,14 @@ struct Level {
         }
     }
 
-    [[gnu::always_inline]] static constexpr int set_of(std::uint64_t blk) {
+    static constexpr int set_of(std::uint64_t blk) {
         return static_cast<int>(blk & INDEX_MASK);
     }
-    [[gnu::always_inline]] static constexpr std::uint64_t tag_of(std::uint64_t blk) {
+    static constexpr std::uint64_t tag_of(std::uint64_t blk) {
         return blk >> INDEX_BITS;
     }
 
-    [[gnu::always_inline]] int find_way(int si, std::uint64_t t) const {
+    int find_way(int si, std::uint64_t t) const {
         const std::size_t base = static_cast<std::size_t>(si) * WAYS;
 #if defined(__AVX2__)
         __m128i tmp;
@@ -191,11 +191,11 @@ struct Level {
         return m ? __builtin_ctz(m) : -1;
     }
 
-    [[gnu::always_inline]] void touch_mru(int si, int way) {
+    void touch_mru(int si, int way) {
         meta[si].lru = TableLRU::next_state[meta[si].lru][way];
     }
 
-    [[gnu::always_inline]] int victim_way(int si) const {
+    int victim_way(int si) const {
         unsigned invalid = static_cast<unsigned>(~meta[si].valid) & 0xFF;
         if (__builtin_expect(invalid, 0)) {
             return __builtin_ctz(invalid);
@@ -203,7 +203,7 @@ struct Level {
         return TableLRU::victim_way[meta[si].lru];
     }
 
-    [[gnu::always_inline]] void set_line(int si, int way, bool v, bool d, std::uint64_t t) {
+    void set_line(int si, int way, bool v, bool d, std::uint64_t t) {
         const std::size_t base = static_cast<std::size_t>(si) * WAYS;
         if (v) meta[si].valid |= (1 << way); else meta[si].valid &= ~(1 << way);
         if (d) meta[si].dirty |= (1 << way); else meta[si].dirty &= ~(1 << way);
