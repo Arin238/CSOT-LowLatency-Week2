@@ -233,10 +233,10 @@ public:
         prctl(PR_TASK_PERF_EVENTS_ENABLE);
 #endif
 #endif
-        std::uint64_t c_writes = 0;
-        std::uint64_t c_l1_hits = 0;
-        std::uint64_t c_l2_hits = 0;
-        std::uint64_t c_dirty_writebacks = 0;
+        register std::uint64_t c_writes asm("r12") = 0;
+        register std::uint64_t c_l1_hits asm("r13") = 0;
+        register std::uint64_t c_l2_hits asm("r14") = 0;
+        register std::uint64_t c_dirty_writebacks asm("r15") = 0;
 
         for (std::size_t i = 0; i < n; ++i) {
             // Optional prefetch – test with your trace; often redundant on modern CPUs
