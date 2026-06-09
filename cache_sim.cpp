@@ -171,7 +171,7 @@ public:
             // __builtin_prefetch(&acc[i + 16], 0, 0);
 
             const csot::MemAccess& a = acc[i];
-            const bool wr = (a.is_write != 0);
+            const std::uint32_t wr = a.is_write; // strictly 0 or 1
             c_writes += wr;
 
             const std::uint64_t b = a.address >> 6;
@@ -187,7 +187,9 @@ public:
 
             if (__builtin_expect(l1_hit, 1)) {
                 l1_.touch_mru(s1, w1);
-                if (wr) l1_.meta[s1].dirty |= (1 << w1);
+                // Branchless dirty update: if wr is 0, (0 << w1) is 0, dirty is unchanged.
+                // If wr is 1, (1 << w1) sets the dirty bit.
+                l1_.meta[s1].dirty |= static_cast<std::uint8_t>(wr << w1);
                 continue;
             }
 
