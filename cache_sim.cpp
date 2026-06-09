@@ -161,7 +161,8 @@ struct Level {
     int find_way(int si, std::uint64_t t) const {
         const std::size_t base = static_cast<std::size_t>(si) * WAYS;
 #if defined(__AVX2__)
-        __m256i key = _mm256_set1_epi64x(t);
+        __m128i tmp = _mm_cvtsi64_si128(t);
+        __m256i key = _mm256_broadcastq_epi64(tmp);
         __m256i a = _mm256_load_si256(reinterpret_cast<const __m256i*>(&tag[base]));
         __m256i b = _mm256_load_si256(reinterpret_cast<const __m256i*>(&tag[base + 4]));
         unsigned m = (unsigned)_mm256_movemask_pd(_mm256_castsi256_pd(_mm256_cmpeq_epi64(a, key)))

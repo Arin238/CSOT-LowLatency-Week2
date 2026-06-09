@@ -1,0 +1,573 @@
+ Percent |	Source code & Disassembly of cache_sim_runner for cycles:P (260 samples, percent: local period)
+---------------------------------------------------------------------------------------------------------------
+         :
+         :
+         :
+         : 3    Disassembly of section .text:
+         :
+         : 5    0000000000001e20 <(anonymous namespace)::BaselineCacheSim::run(csot::MemAccess const*, unsigned long)>:
+    0.00 :   1e20:   endbr64
+    0.00 :   1e24:   push   %rbp
+    0.00 :   1e25:   mov    %rdi,%rax
+    0.00 :   1e28:   mov    %rsp,%rbp
+    0.00 :   1e2b:   push   %r15
+    0.00 :   1e2d:   push   %r14
+    0.00 :   1e2f:   push   %r13
+    0.00 :   1e31:   push   %r12
+    0.00 :   1e33:   push   %rbx
+    0.00 :   1e34:   and    $0xffffffffffffffe0,%rsp
+    0.00 :   1e38:   mov    %rcx,-0x10(%rsp)
+    0.00 :   1e3d:   test   %rcx,%rcx
+    0.00 :   1e40:   je     2300 <(anonymous namespace)::BaselineCacheSim::run(csot::MemAccess const*, unsigned long)+0x4e0>
+    0.00 :   1e46:   mov    %rdi,-0x40(%rsp)
+    0.00 :   1e4b:   mov    %rsi,%rbx
+    0.00 :   1e4e:   mov    %rdx,%r13
+    0.00 :   1e51:   xor    %r15d,%r15d
+    0.00 :   1e54:   movq   $0x0,-0x30(%rsp)
+    0.00 :   1e5d:   xor    %r12d,%r12d
+    0.00 :   1e60:   xor    %r14d,%r14d
+    0.00 :   1e63:   movq   $0x0,-0x20(%rsp)
+    0.00 :   1e6c:   nopl   0x0(%rax)
+    0.77 :   1e70:   mov    0x0(%r13),%r10
+    0.00 :   1e74:   movzbl 0x8(%r13),%edi
+    0.00 :   1e79:   mov    %r10,%rcx
+    1.55 :   1e7c:   mov    %r10,%rax
+    2.68 :   1e7f:   add    %rdi,%r14
+    0.00 :   1e82:   shr    $0x6,%rcx
+    0.00 :   1e86:   shr    $0xc,%rax
+    3.08 :   1e8a:   mov    %rcx,%rdx
+    1.93 :   1e8d:   mov    %rax,-0x8(%rsp)
+    0.39 :   1e92:   vpbroadcastq -0x8(%rsp),%ymm0
+    0.00 :   1e99:   and    $0x3f,%edx
+    2.32 :   1e9c:   mov    %rdx,-0x18(%rsp)
+    1.15 :   1ea1:   lea    0x0(,%rdx,8),%rsi
+    0.39 :   1ea9:   shl    $0x6,%rdx
+    2.67 :   1ead:   vpcmpeqq 0x40(%rbx,%rdx,1),%ymm0,%ymm1
+    0.75 :   1eb4:   vpcmpeqq 0x60(%rbx,%rdx,1),%ymm0,%ymm0
+    0.38 :   1ebb:   vmovmskpd %ymm0,%r9d
+    1.16 :   1ebf:   vmovmskpd %ymm1,%eax
+    1.16 :   1ec3:   shl    $0x4,%r9d
+    0.39 :   1ec7:   or     %eax,%r9d
+    0.00 :   1eca:   lea    (%rbx,%rsi,1),%rax
+    1.15 :   1ece:   vzeroupper
+    4.22 :   1ed1:   vzeroupper
+    0.37 :   1ed4:   movzbl 0x1040(%rax),%r8d
+    0.39 :   1edc:   and    %r9d,%r8d
+    0.00 :   1edf:   je     1fb8 <(anonymous namespace)::BaselineCacheSim::run(csot::MemAccess const*, unsigned long)+0x198>
+    0.39 :   1ee5:   mov    0x1044(%rax),%esi
+    0.00 :   1eeb:   tzcnt  %r8d,%r8d
+    0.00 :   1ef0:   inc    %r12
+    0.39 :   1ef3:   lea    0x0(,%r8,4),%r9d
+    0.00 :   1efb:   shlx   %r8d,%edi,%r8d
+    1.94 :   1f00:   or     %r8b,0x1041(%rax)
+    1.55 :   1f07:   shrx   %r9d,%esi,%ecx
+    0.39 :   1f0c:   and    $0xf,%ecx
+    0.00 :   1f0f:   mov    %esi,%r10d
+    0.77 :   1f12:   imul   $0x11111111,%ecx,%edx
+    0.77 :   1f18:   or     $0x88888888,%r10d
+    0.00 :   1f1f:   shlx   %r9d,%ecx,%ecx
+    0.00 :   1f24:   sub    %ecx,%esi
+    0.00 :   1f26:   sub    %r10d,%edx
+    1.94 :   1f29:   dec    %edx
+    0.78 :   1f2b:   shr    $0x3,%edx
+    0.77 :   1f2e:   and    $0x11111111,%edx
+    1.15 :   1f34:   add    %esi,%edx
+    0.00 :   1f36:   mov    %edx,0x1044(%rax)
+    0.00 :   1f3c:   inc    %r15
+    0.00 :   1f3f:   add    $0x10,%r13
+    0.00 :   1f43:   cmp    %r15,-0x10(%rsp)
+    1.55 :   1f48:   jne    1e70 <(anonymous namespace)::BaselineCacheSim::run(csot::MemAccess const*, unsigned long)+0x50>
+    0.00 :   1f4e:   mov    %r15,%rdx
+    0.00 :   1f51:   sub    %r14,-0x10(%rsp)
+    0.00 :   1f56:   mov    -0x20(%rsp),%rdi
+    0.00 :   1f5b:   sub    %r12,%rdx
+    0.00 :   1f5e:   mov    -0x40(%rsp),%rax
+    0.00 :   1f63:   mov    %rdx,%rcx
+    0.00 :   1f66:   vmovq  %rdi,%xmm4
+    0.00 :   1f6b:   sub    %rdi,%rcx
+    0.00 :   1f6e:   vmovq  -0x10(%rsp),%xmm3
+    0.00 :   1f74:   mov    -0x30(%rsp),%rdi
+    0.00 :   1f79:   vmovq  %r12,%xmm2
+    0.00 :   1f7e:   vpinsrq $0x1,%rdx,%xmm2,%xmm0
+    0.00 :   1f84:   vpinsrq $0x1,%r14,%xmm3,%xmm1
+    0.00 :   1f8a:   mov    %rdi,0x30(%rax)
+    0.00 :   1f8e:   vinserti128 $0x1,%xmm0,%ymm1,%ymm0
+    0.00 :   1f94:   vmovdqu %ymm0,(%rax)
+    0.00 :   1f98:   vpinsrq $0x1,%rcx,%xmm4,%xmm0
+    0.00 :   1f9e:   vmovdqu %xmm0,0x20(%rax)
+    0.00 :   1fa3:   vzeroupper
+    0.00 :   1fa6:   lea    -0x28(%rbp),%rsp
+    0.00 :   1faa:   pop    %rbx
+    0.00 :   1fab:   pop    %r12
+    0.00 :   1fad:   pop    %r13
+    0.00 :   1faf:   pop    %r14
+    0.00 :   1fb1:   pop    %r15
+    0.00 :   1fb3:   pop    %rbp
+    0.00 :   1fb4:   ret
+    0.00 :   1fb5:   nopl   (%rax)
+    0.39 :   1fb8:   and    $0x1ff,%ecx
+    0.00 :   1fbe:   shr    $0xf,%r10
+    0.00 :   1fc2:   mov    %rcx,%r11
+    0.00 :   1fc5:   mov    %r10,-0x38(%rsp)
+    1.55 :   1fca:   vpbroadcastq -0x38(%rsp),%ymm0
+    0.00 :   1fd1:   lea    0x0(,%rcx,8),%rdx
+    0.38 :   1fd9:   mov    %r11,%r8
+    0.00 :   1fdc:   mov    %rcx,-0x28(%rsp)
+    1.93 :   1fe1:   lea    0x1240(%rbx),%rcx
+    0.00 :   1fe8:   shl    $0x6,%r8
+    0.00 :   1fec:   mov    %rdx,-0x50(%rsp)
+    0.39 :   1ff1:   vpcmpeqq 0x1240(%rbx,%r8,1),%ymm0,%ymm1
+    0.00 :   1ffb:   mov    %rcx,-0x48(%rsp)
+    0.77 :   2000:   vpcmpeqq 0x1260(%rbx,%rdx,8),%ymm0,%ymm0
+    0.38 :   200a:   vmovmskpd %ymm0,%r8d
+    0.00 :   200e:   vmovmskpd %ymm1,%r9d
+    0.00 :   2012:   shl    $0x4,%r8d
+    1.17 :   2016:   or     %r9d,%r8d
+    1.55 :   2019:   vzeroupper
+    2.70 :   201c:   vzeroupper
+    0.00 :   201f:   movzbl 0x9240(%rbx,%r11,8),%r9d
+    0.00 :   2028:   mov    %r9d,%r10d
+    0.00 :   202b:   and    %r8d,%r9d
+    0.39 :   202e:   je     2208 <(anonymous namespace)::BaselineCacheSim::run(csot::MemAccess const*, unsigned long)+0x3e8>
+    0.38 :   2034:   mov    -0x28(%rsp),%rcx
+    0.76 :   2039:   tzcnt  %r9d,%r9d
+    0.00 :   203e:   incq   -0x20(%rsp)
+    1.16 :   2043:   shl    $0x2,%r9d
+    0.00 :   2047:   shrx   %r9d,0x9244(%rbx,%rcx,8),%r10d
+    0.00 :   2051:   and    $0xf,%r10d
+    0.00 :   2055:   mov    0x9244(%rbx,%rcx,8),%r11d
+    0.00 :   205d:   imul   $0x11111111,%r10d,%r8d
+    0.00 :   2064:   shlx   %r9d,%r10d,%r10d
+    0.00 :   2069:   mov    0x9244(%rbx,%rcx,8),%r9d
+    0.00 :   2071:   or     $0x88888888,%r11d
+    0.00 :   2078:   sub    %r10d,%r9d
+    0.00 :   207b:   sub    %r11d,%r8d
+    0.38 :   207e:   dec    %r8d
+    0.39 :   2081:   shr    $0x3,%r8d
+    0.00 :   2085:   and    $0x11111111,%r8d
+    0.00 :   208c:   add    %r9d,%r8d
+    0.39 :   208f:   mov    -0x28(%rsp),%rcx
+    0.77 :   2094:   mov    %r8d,0x9244(%rbx,%rcx,8)
+    0.00 :   209c:   movzbl 0x1040(%rax),%r8d
+    1.15 :   20a4:   mov    %r8d,%ecx
+    0.39 :   20a7:   xor    $0xff,%cl
+    0.00 :   20aa:   jne    2327 <(anonymous namespace)::BaselineCacheSim::run(csot::MemAccess const*, unsigned long)+0x507>
+    0.00 :   20b0:   mov    0x1044(%rax),%ecx
+    0.77 :   20b6:   add    $0x11111111,%ecx
+    0.00 :   20bc:   and    $0x88888888,%ecx
+    2.31 :   20c2:   tzcnt  %ecx,%ecx
+    0.00 :   20c6:   sar    $0x2,%ecx
+    0.38 :   20c9:   mov    %ecx,-0x28(%rsp)
+    0.00 :   20cd:   movslq %ecx,%r9
+    0.77 :   20d0:   add    %r9,%rsi
+    0.00 :   20d3:   movzbl 0x1041(%rax),%r9d
+    0.39 :   20db:   and    %r8d,%r9d
+    1.16 :   20de:   movzbl %r9b,%r9d
+    0.00 :   20e2:   bt     %ecx,%r9d
+    0.00 :   20e6:   jae    217e <(anonymous namespace)::BaselineCacheSim::run(csot::MemAccess const*, unsigned long)+0x35e>
+    0.77 :   20ec:   mov    -0x18(%rsp),%rdx
+    0.00 :   20f1:   mov    $0x6,%ecx
+    0.00 :   20f6:   shlx   %rcx,0x40(%rbx,%rsi,8),%r8
+    0.00 :   20fd:   mov    -0x48(%rsp),%rcx
+    0.00 :   2102:   or     %r8,%rdx
+    0.39 :   2105:   shr    $0x9,%r8
+    0.00 :   2109:   and    $0x1ff,%edx
+    0.00 :   210f:   mov    %r8,-0x18(%rsp)
+    1.53 :   2114:   vpbroadcastq -0x18(%rsp),%ymm0
+    0.00 :   211b:   lea    0x0(,%rdx,8),%r10
+    0.00 :   2123:   shl    $0x6,%rdx
+    0.77 :   2127:   vpcmpeqq (%rcx,%rdx,1),%ymm0,%ymm1
+    0.00 :   212d:   vpcmpeqq 0x20(%rcx,%r10,8),%ymm0,%ymm0
+    0.00 :   2134:   lea    (%rbx,%r10,1),%r9
+    0.37 :   2138:   vmovmskpd %ymm0,%edx
+    0.00 :   213c:   vmovmskpd %ymm1,%r8d
+    0.00 :   2140:   shl    $0x4,%edx
+    0.78 :   2143:   or     %r8d,%edx
+    0.00 :   2146:   vzeroupper
+    0.00 :   2149:   vzeroupper
+    0.00 :   214c:   movzbl 0x9240(%r9),%r8d
+    0.00 :   2154:   mov    %r8d,%r11d
+    0.00 :   2157:   and    %edx,%r8d
+    0.00 :   215a:   je     2345 <(anonymous namespace)::BaselineCacheSim::run(csot::MemAccess const*, unsigned long)+0x525>
+    1.54 :   2160:   tzcnt  %r8d,%r8d
+    0.00 :   2165:   mov    $0x1,%edx
+    0.00 :   216a:   shlx   %r8d,%edx,%edx
+    0.75 :   216f:   or     %dl,0x9241(%r9)
+    0.00 :   2176:   movzbl 0x1040(%rax),%r8d
+    0.00 :   217e:   movzbl -0x28(%rsp),%ecx
+    0.00 :   2183:   mov    $0x1,%edx
+    0.38 :   2188:   shlx   %ecx,%edx,%edx
+    0.39 :   218d:   or     %edx,%r8d
+    0.00 :   2190:   mov    %r8b,0x1040(%rax)
+    0.75 :   2197:   test   %edi,%edi
+    0.39 :   2199:   jne    2200 <(anonymous namespace)::BaselineCacheSim::run(csot::MemAccess const*, unsigned long)+0x3e0>
+    1.16 :   219b:   not    %edx
+    0.00 :   219d:   and    0x1041(%rax),%dl
+    0.39 :   21a3:   mov    -0x8(%rsp),%rdi
+    0.00 :   21a8:   mov    -0x28(%rsp),%ecx
+    1.54 :   21ac:   mov    %dl,0x1041(%rax)
+    0.00 :   21b2:   mov    %rdi,0x40(%rbx,%rsi,8)
+    0.37 :   21b7:   mov    0x1044(%rax),%esi
+    0.00 :   21bd:   shl    $0x2,%ecx
+    0.37 :   21c0:   shrx   %ecx,%esi,%edi
+    0.77 :   21c5:   and    $0xf,%edi
+    0.38 :   21c8:   mov    %esi,%r8d
+    0.39 :   21cb:   imul   $0x11111111,%edi,%edx
+    1.55 :   21d1:   or     $0x88888888,%r8d
+    0.00 :   21d8:   shlx   %ecx,%edi,%edi
+    0.00 :   21dd:   sub    %edi,%esi
+    0.00 :   21df:   sub    %r8d,%edx
+    2.66 :   21e2:   dec    %edx
+    0.00 :   21e4:   shr    $0x3,%edx
+    0.00 :   21e7:   and    $0x11111111,%edx
+    0.00 :   21ed:   add    %edx,%esi
+    1.16 :   21ef:   mov    %esi,0x1044(%rax)
+    0.00 :   21f5:   jmp    1f3c <(anonymous namespace)::BaselineCacheSim::run(csot::MemAccess const*, unsigned long)+0x11c>
+    0.00 :   21fa:   nopw   0x0(%rax,%rax,1)
+    0.39 :   2200:   or     0x1041(%rax),%dl
+    0.00 :   2206:   jmp    21a3 <(anonymous namespace)::BaselineCacheSim::run(csot::MemAccess const*, unsigned long)+0x383>
+    0.39 :   2208:   mov    %r10d,%r8d
+    0.39 :   220b:   xor    $0xff,%r8b
+    0.00 :   220f:   jne    2337 <(anonymous namespace)::BaselineCacheSim::run(csot::MemAccess const*, unsigned long)+0x517>
+    0.00 :   2215:   mov    -0x28(%rsp),%rcx
+    0.77 :   221a:   mov    0x9244(%rbx,%rcx,8),%ecx
+    0.37 :   2221:   lea    0x11111111(%rcx),%r8d
+    0.00 :   2228:   and    $0x88888888,%r8d
+    0.39 :   222f:   tzcnt  %r8d,%r8d
+    0.39 :   2234:   sar    $0x2,%r8d
+    0.38 :   2238:   mov    -0x28(%rsp),%rcx
+    0.00 :   223d:   mov    %r10d,%r9d
+    0.39 :   2240:   movzbl %r10b,%r11d
+    0.00 :   2244:   and    0x9241(%rbx,%rcx,8),%r9b
+    1.55 :   224c:   mov    %rcx,%r10
+    0.00 :   224f:   movzbl 0x9241(%rbx,%rcx,8),%ecx
+    0.38 :   2257:   movzbl %r9b,%r9d
+    1.53 :   225b:   sarx   %r8d,%r9d,%r9d
+    0.78 :   2260:   and    $0x1,%r9d
+    0.00 :   2264:   add    %r9,-0x30(%rsp)
+    0.39 :   2269:   mov    $0x1,%r9d
+    1.15 :   226f:   shlx   %r8d,%r9d,%r9d
+    0.00 :   2274:   or     %r9b,%r11b
+    0.38 :   2277:   andn   %ecx,%r9d,%r9d
+    0.00 :   227c:   mov    %r9d,%edx
+    0.00 :   227f:   mov    %r11d,%ecx
+    0.00 :   2282:   movslq %r8d,%r9
+    0.00 :   2285:   shl    $0x2,%r8d
+    0.76 :   2289:   mov    %dl,%ch
+    1.93 :   228b:   mov    %ecx,%r11d
+    1.13 :   228e:   mov    -0x50(%rsp),%rcx
+    0.39 :   2293:   mov    %r11w,0x9240(%rbx,%rcx,1)
+    0.00 :   229c:   add    %rcx,%r9
+    0.00 :   229f:   mov    -0x38(%rsp),%rcx
+    0.37 :   22a4:   mov    %rcx,0x1240(%rbx,%r9,8)
+    0.39 :   22ac:   mov    %r10,%rcx
+    0.39 :   22af:   shrx   %r8d,0x9244(%rbx,%r10,8),%r10d
+    0.38 :   22b9:   and    $0xf,%r10d
+    0.38 :   22bd:   imul   $0x11111111,%r10d,%r9d
+    0.39 :   22c4:   mov    0x9244(%rbx,%rcx,8),%r11d
+    0.00 :   22cc:   shlx   %r8d,%r10d,%r10d
+    0.00 :   22d1:   mov    0x9244(%rbx,%rcx,8),%r8d
+    0.00 :   22d9:   or     $0x88888888,%r11d
+    0.00 :   22e0:   sub    %r10d,%r8d
+    0.00 :   22e3:   sub    %r11d,%r9d
+    1.15 :   22e6:   dec    %r9d
+    0.00 :   22e9:   shr    $0x3,%r9d
+    0.00 :   22ed:   and    $0x11111111,%r9d
+    0.00 :   22f4:   add    %r9d,%r8d
+    0.38 :   22f7:   jmp    208f <(anonymous namespace)::BaselineCacheSim::run(csot::MemAccess const*, unsigned long)+0x26f>
+    0.00 :   22fc:   nopl   0x0(%rax)
+    0.00 :   2300:   movq   $0x0,-0x20(%rsp)
+    0.00 :   2309:   xor    %ecx,%ecx
+    0.00 :   230b:   xor    %edx,%edx
+    0.00 :   230d:   xor    %r12d,%r12d
+    0.00 :   2310:   movq   $0x0,-0x30(%rsp)
+    0.00 :   2319:   vmovq  -0x20(%rsp),%xmm4
+    0.00 :   231f:   xor    %r14d,%r14d
+    0.00 :   2322:   jmp    1f6e <(anonymous namespace)::BaselineCacheSim::run(csot::MemAccess const*, unsigned long)+0x14e>
+    0.00 :   2327:   movzbl %cl,%ecx
+    0.00 :   232a:   tzcnt  %ecx,%ecx
+    0.00 :   232e:   mov    %ecx,-0x28(%rsp)
+    0.00 :   2332:   jmp    20cd <(anonymous namespace)::BaselineCacheSim::run(csot::MemAccess const*, unsigned long)+0x2ad>
+    0.00 :   2337:   movzbl %r8b,%r8d
+    0.00 :   233b:   tzcnt  %r8d,%r8d
+    0.00 :   2340:   jmp    2238 <(anonymous namespace)::BaselineCacheSim::run(csot::MemAccess const*, unsigned long)+0x418>
+    0.00 :   2345:   mov    %r11d,%edx
+    0.00 :   2348:   xor    $0xff,%dl
+    0.00 :   234b:   jne    2424 <(anonymous namespace)::BaselineCacheSim::run(csot::MemAccess const*, unsigned long)+0x604>
+    0.00 :   2351:   mov    0x9244(%r9),%ecx
+    0.00 :   2358:   lea    0x11111111(%rcx),%edx
+    0.00 :   235e:   and    $0x88888888,%edx
+    0.00 :   2364:   tzcnt  %edx,%edx
+    0.00 :   2368:   sar    $0x2,%edx
+    0.00 :   236b:   mov    %edx,%r8d
+    0.00 :   236e:   movzbl 0x9241(%r9),%edx
+    0.00 :   2376:   and    %r11d,%edx
+    0.00 :   2379:   movzbl %dl,%edx
+    0.00 :   237c:   sarx   %r8d,%edx,%edx
+    0.00 :   2381:   and    $0x1,%edx
+    0.00 :   2384:   add    %rdx,-0x30(%rsp)
+    0.00 :   2389:   mov    $0x1,%edx
+    0.00 :   238e:   shlx   %r8d,%edx,%r11d
+    0.00 :   2393:   mov    %r11d,%ecx
+    0.00 :   2396:   movzbl %r11b,%edx
+    0.00 :   239a:   lea    0x0(,%r8,4),%r11d
+    0.00 :   23a2:   mov    %cl,%dh
+    0.00 :   23a4:   movzwl 0x9240(%r9),%ecx
+    0.00 :   23ac:   or     %ecx,%edx
+    0.00 :   23ae:   mov    -0x18(%rsp),%rcx
+    0.00 :   23b3:   mov    %dx,0x9240(%rbx,%r10,1)
+    0.00 :   23bc:   movslq %r8d,%rdx
+    0.00 :   23bf:   add    %r10,%rdx
+    0.00 :   23c2:   mov    0x9244(%r9),%r10d
+    0.00 :   23c9:   mov    %rcx,0x1240(%rbx,%rdx,8)
+    0.00 :   23d1:   shrx   %r11d,0x9244(%r9),%edx
+    0.00 :   23da:   and    $0xf,%edx
+    0.00 :   23dd:   mov    %edx,%r8d
+    0.00 :   23e0:   imul   $0x11111111,%edx,%edx
+    0.00 :   23e6:   or     $0x88888888,%r10d
+    0.00 :   23ed:   shlx   %r11d,%r8d,%r8d
+    0.00 :   23f2:   sub    %r10d,%edx
+    0.00 :   23f5:   dec    %edx
+    0.00 :   23f7:   shr    $0x3,%edx
+    0.00 :   23fa:   and    $0x11111111,%edx
+    0.00 :   2400:   mov    %edx,%r10d
+    0.00 :   2403:   mov    0x9244(%r9),%edx
+    0.00 :   240a:   sub    %r8d,%edx
+    0.00 :   240d:   movzbl 0x1040(%rax),%r8d
+    0.00 :   2415:   add    %r10d,%edx
+    0.00 :   2418:   mov    %edx,0x9244(%r9)
+    0.00 :   241f:   jmp    217e <(anonymous namespace)::BaselineCacheSim::run(csot::MemAccess const*, unsigned long)+0x35e>
+    0.00 :   2424:   movzbl %dl,%edx
+    0.00 :   2427:   xor    %r8d,%r8d
+    0.00 :   242a:   tzcnt  %edx,%r8d
+    0.00 :   242f:   jmp    236e <(anonymous namespace)::BaselineCacheSim::run(csot::MemAccess const*, unsigned long)+0x54e>
+ Percent |	Source code & Disassembly of cache_sim_runner for cycles:P (21 samples, percent: local period)
+--------------------------------------------------------------------------------------------------------------
+         :
+         :
+         :
+         : 3    Disassembly of section .text:
+         :
+         : 5    0000000000001220 <main>:
+    0.00 :   1220:   endbr64
+    0.00 :   1224:   push   %rbp
+    0.00 :   1225:   mov    %rsp,%rbp
+    0.00 :   1228:   push   %r15
+    0.00 :   122a:   push   %r14
+    0.00 :   122c:   push   %r13
+    0.00 :   122e:   push   %r12
+    0.00 :   1230:   push   %rbx
+    0.00 :   1231:   mov    %rsi,%rbx
+    0.00 :   1234:   sub    $0x278,%rsp
+    0.00 :   123b:   mov    %fs:0x28,%rax
+    0.00 :   1244:   mov    %rax,-0x38(%rbp)
+    0.00 :   1248:   xor    %eax,%eax
+    0.00 :   124a:   cmp    $0x2,%edi
+    0.00 :   124d:   jne    130d <main+0xed>
+    0.00 :   1253:   mov    0x8(%rsi),%rsi
+    0.00 :   1257:   lea    -0x240(%rbp),%r14
+    0.00 :   125e:   mov    %edi,%r13d
+    0.00 :   1261:   mov    $0x6,%edx
+    0.00 :   1266:   mov    %r14,%rdi
+    0.00 :   1269:   call   1210 <std::basic_ifstream<char, std::char_traits<char> >::basic_ifstream(char const*, std::_Ios_Openmode)@plt>
+    0.00 :   126e:   mov    -0x120(%rbp),%eax
+    0.00 :   1274:   and    $0x5,%eax
+    0.00 :   1277:   mov    %eax,-0x284(%rbp)
+    0.00 :   127d:   jne    12bf <main+0x9f>
+    0.00 :   127f:   mov    %r14,%rdi
+    0.00 :   1282:   call   11f0 <std::istream::tellg()@plt>
+    0.00 :   1287:   mov    %rax,%r12
+    0.00 :   128a:   test   %rax,%rax
+    0.00 :   128d:   js     1297 <main+0x77>
+    0.00 :   128f:   test   $0xf,%al
+    0.00 :   1291:   je     1334 <main+0x114>
+    0.00 :   1297:   mov    0x3d42(%rip),%rax        # 4fe0 <stderr@GLIBC_2.2.5>
+    0.00 :   129e:   mov    $0x10,%r8d
+    0.00 :   12a4:   mov    %r12,%rcx
+    0.00 :   12a7:   lea    0x1d9a(%rip),%rdx        # 3048 <_IO_stdin_used+0x48>
+    0.00 :   12ae:   mov    $0x2,%esi
+    0.00 :   12b3:   mov    (%rax),%rdi
+    0.00 :   12b6:   xor    %eax,%eax
+    0.00 :   12b8:   call   11e0 <__fprintf_chk@plt>
+    0.00 :   12bd:   jmp    12e0 <main+0xc0>
+    0.00 :   12bf:   mov    0x3d1a(%rip),%rax        # 4fe0 <stderr@GLIBC_2.2.5>
+    0.00 :   12c6:   mov    0x8(%rbx),%rcx
+    0.00 :   12ca:   mov    $0x2,%esi
+    0.00 :   12cf:   lea    0x1d4a(%rip),%rdx        # 3020 <_IO_stdin_used+0x20>
+    0.00 :   12d6:   mov    (%rax),%rdi
+    0.00 :   12d9:   xor    %eax,%eax
+    0.00 :   12db:   call   11e0 <__fprintf_chk@plt>
+    0.00 :   12e0:   mov    %r14,%rdi
+    0.00 :   12e3:   call   1150 <std::basic_ifstream<char, std::char_traits<char> >::~basic_ifstream()@plt>
+    0.00 :   12e8:   mov    %r13d,%eax
+    0.00 :   12eb:   mov    -0x38(%rbp),%rdx
+    0.00 :   12ef:   sub    %fs:0x28,%rdx
+    0.00 :   12f8:   jne    15a1 <main+0x381>
+    0.00 :   12fe:   lea    -0x28(%rbp),%rsp
+    0.00 :   1302:   pop    %rbx
+    0.00 :   1303:   pop    %r12
+    0.00 :   1305:   pop    %r13
+    0.00 :   1307:   pop    %r14
+    0.00 :   1309:   pop    %r15
+    0.00 :   130b:   pop    %rbp
+    0.00 :   130c:   ret
+    0.00 :   130d:   mov    0x3ccc(%rip),%rax        # 4fe0 <stderr@GLIBC_2.2.5>
+    0.00 :   1314:   mov    (%rsi),%rcx
+    0.00 :   1317:   lea    0x1ce6(%rip),%rdx        # 3004 <_IO_stdin_used+0x4>
+    0.00 :   131e:   mov    $0x2,%esi
+    0.00 :   1323:   mov    (%rax),%rdi
+    0.00 :   1326:   xor    %eax,%eax
+    0.00 :   1328:   call   11e0 <__fprintf_chk@plt>
+    0.00 :   132d:   mov    $0x2,%eax
+    0.00 :   1332:   jmp    12eb <main+0xcb>
+    0.00 :   1334:   xor    %esi,%esi
+    0.00 :   1336:   xor    %edx,%edx
+    0.00 :   1338:   mov    %r14,%rdi
+    0.00 :   133b:   call   11c0 <std::istream::seekg(std::fpos<__mbstate_t>)@plt>
+    0.00 :   1340:   mov    %r12,%rax
+    0.00 :   1343:   mov    %r12,%rcx
+    0.00 :   1346:   and    $0xfffffffffffffff0,%rax
+    0.00 :   134a:   shr    $0x4,%rcx
+    0.00 :   134e:   mov    %rax,-0x298(%rbp)
+    0.00 :   1355:   mov    %rcx,-0x290(%rbp)
+    0.00 :   135c:   je     1565 <main+0x345>
+    0.00 :   1362:   mov    %rax,%rdi
+    0.00 :   1365:   call   1170 <operator new(unsigned long)@plt>
+    0.00 :   136a:   vpxor  %xmm0,%xmm0,%xmm0
+    0.00 :   136e:   cmpq   $0x1,-0x290(%rbp)
+    0.00 :   1376:   lea    0x10(%rax),%r13
+    0.00 :   137a:   mov    %rax,%r15
+    0.00 :   137d:   vmovdqu %xmm0,(%rax)
+    0.00 :   1381:   je     13a3 <main+0x183>
+    0.00 :   1383:   mov    -0x298(%rbp),%rax
+    0.00 :   138a:   add    %r15,%rax
+    0.00 :   138d:   jmp    139e <main+0x17e>
+    4.85 :   138f:   vmovdqu (%r15),%xmm2
+    0.00 :   1394:   add    $0x10,%r13
+   95.15 :   1398:   vmovdqu %xmm2,-0x10(%r13)
+    0.00 :   139e:   cmp    %r13,%rax
+    0.00 :   13a1:   jne    138f <main+0x16f>
+    0.00 :   13a3:   mov    %r12,%rdx
+    0.00 :   13a6:   mov    %r15,%rsi
+    0.00 :   13a9:   mov    %r14,%rdi
+    0.00 :   13ac:   call   11b0 <std::istream::read(char*, long)@plt>
+    0.00 :   13b1:   mov    (%rax),%rdx
+    0.00 :   13b4:   mov    -0x18(%rdx),%rdx
+    0.00 :   13b8:   testb  $0x5,0x20(%rax,%rdx,1)
+    0.00 :   13bd:   jne    1529 <main+0x309>
+    0.00 :   13c3:   mov    $0x40,%esi
+    0.00 :   13c8:   mov    $0xa240,%edi
+    0.00 :   13cd:   call   1190 <operator new(unsigned long, std::align_val_t)@plt>
+    0.00 :   13d2:   mov    $0xa240,%edx
+    0.00 :   13d7:   xor    %esi,%esi
+    0.00 :   13d9:   mov    %rax,%rdi
+    0.00 :   13dc:   mov    %rax,%rbx
+    0.00 :   13df:   call   1160 <memset@plt>
+    0.00 :   13e4:   lea    0x40(%rbx),%rdi
+    0.00 :   13e8:   mov    $0x1000,%edx
+    0.00 :   13ed:   xor    %esi,%esi
+    0.00 :   13ef:   lea    0x38f2(%rip),%rax        # 4ce8 <vtable for (anonymous namespace)::BaselineCacheSim+0x10>
+    0.00 :   13f6:   mov    %rax,(%rbx)
+    0.00 :   13f9:   call   1160 <memset@plt>
+    0.00 :   13fe:   lea    0x1240(%rbx),%rdi
+    0.00 :   1405:   mov    $0x8000,%edx
+    0.00 :   140a:   xor    %esi,%esi
+    0.00 :   140c:   call   1160 <memset@plt>
+    0.00 :   1411:   mov    $0x1000,%edx
+    0.00 :   1416:   xor    %esi,%esi
+    0.00 :   1418:   lea    0x9240(%rbx),%rdi
+    0.00 :   141f:   call   1160 <memset@plt>
+    0.00 :   1424:   mov    %rbx,%rdi
+    0.00 :   1427:   call   16c0 <(anonymous namespace)::BaselineCacheSim::on_init()>
+    0.00 :   142c:   call   11d0 <std::chrono::_V2::steady_clock::now()@plt>
+    0.00 :   1431:   mov    %r13,%rcx
+    0.00 :   1434:   mov    %r15,%rdx
+    0.00 :   1437:   mov    %rbx,%rsi
+    0.00 :   143a:   mov    %rax,%r12
+    0.00 :   143d:   mov    (%rbx),%rax
+    0.00 :   1440:   sub    %r15,%rcx
+    0.00 :   1443:   lea    -0x280(%rbp),%rdi
+    0.00 :   144a:   sar    $0x4,%rcx
+    0.00 :   144e:   call   *0x18(%rax)
+    0.00 :   1451:   call   11d0 <std::chrono::_V2::steady_clock::now()@plt>
+    0.00 :   1456:   vxorps %xmm0,%xmm0,%xmm0
+    0.00 :   145a:   sub    %r12,%rax
+    0.00 :   145d:   xor    %r12d,%r12d
+    0.00 :   1460:   vcvtsi2sd %rax,%xmm0,%xmm1
+    0.00 :   1465:   vmovsd %xmm1,%xmm1,%xmm3
+    0.00 :   1469:   vmovsd %xmm1,-0x2a0(%rbp)
+    0.00 :   1471:   vxorpd %xmm1,%xmm1,%xmm1
+    0.00 :   1475:   vcomisd %xmm1,%xmm3
+    0.00 :   1479:   jbe    1495 <main+0x275>
+    0.00 :   147b:   vcvtsi2sdq -0x290(%rbp),%xmm0,%xmm0
+    0.00 :   1484:   vdivsd %xmm3,%xmm0,%xmm0
+    0.00 :   1488:   vmulsd 0x1d38(%rip),%xmm0,%xmm4        # 31c8 <typeinfo name for (anonymous namespace)::BaselineCacheSim+0x28>
+    0.00 :   1490:   vmovq  %xmm4,%r12
+    0.00 :   1495:   push   %rax
+    0.00 :   1496:   lea    0x1c0b(%rip),%rsi        # 30a8 <_IO_stdin_used+0xa8>
+    0.00 :   149d:   mov    $0x2,%edi
+    0.00 :   14a2:   xor    %eax,%eax
+    0.00 :   14a4:   push   -0x250(%rbp)
+    0.00 :   14aa:   push   -0x258(%rbp)
+    0.00 :   14b0:   push   -0x260(%rbp)
+    0.00 :   14b6:   mov    -0x268(%rbp),%r9
+    0.00 :   14bd:   mov    -0x270(%rbp),%r8
+    0.00 :   14c4:   mov    -0x278(%rbp),%rcx
+    0.00 :   14cb:   mov    -0x280(%rbp),%rdx
+    0.00 :   14d2:   call   1130 <__printf_chk@plt>
+    0.00 :   14d7:   mov    0x3b02(%rip),%rax        # 4fe0 <stderr@GLIBC_2.2.5>
+    0.00 :   14de:   vmovsd -0x2a0(%rbp),%xmm0
+    0.00 :   14e6:   add    $0x20,%rsp
+    0.00 :   14ea:   vmovq  %r12,%xmm1
+    0.00 :   14ef:   mov    -0x290(%rbp),%rcx
+    0.00 :   14f6:   lea    0x1c43(%rip),%rdx        # 3140 <_IO_stdin_used+0x140>
+    0.00 :   14fd:   mov    $0x2,%esi
+    0.00 :   1502:   mov    (%rax),%rdi
+    0.00 :   1505:   mov    $0x2,%eax
+    0.00 :   150a:   call   11e0 <__fprintf_chk@plt>
+    0.00 :   150f:   mov    (%rbx),%rax
+    0.00 :   1512:   mov    %rbx,%rdi
+    0.00 :   1515:   call   *0x8(%rax)
+    0.00 :   1518:   test   %r15,%r15
+    0.00 :   151b:   jne    1554 <main+0x334>
+    0.00 :   151d:   mov    -0x284(%rbp),%r13d
+    0.00 :   1524:   jmp    12e0 <main+0xc0>
+    0.00 :   1529:   mov    0x3ab0(%rip),%rax        # 4fe0 <stderr@GLIBC_2.2.5>
+    0.00 :   1530:   mov    0x8(%rbx),%rcx
+    0.00 :   1534:   mov    $0x2,%esi
+    0.00 :   1539:   lea    0x1b40(%rip),%rdx        # 3080 <_IO_stdin_used+0x80>
+    0.00 :   1540:   mov    (%rax),%rdi
+    0.00 :   1543:   xor    %eax,%eax
+    0.00 :   1545:   call   11e0 <__fprintf_chk@plt>
+    0.00 :   154a:   movl   $0x2,-0x284(%rbp)
+    0.00 :   1554:   mov    -0x298(%rbp),%rsi
+    0.00 :   155b:   mov    %r15,%rdi
+    0.00 :   155e:   call   1180 <operator delete(void*, unsigned long)@plt>
+    0.00 :   1563:   jmp    151d <main+0x2fd>
+    0.00 :   1565:   xor    %r15d,%r15d
+    0.00 :   1568:   xor    %r13d,%r13d
+    0.00 :   156b:   jmp    13c3 <main+0x1a3>
+    0.00 :   1570:   test   %r15,%r15
+    0.00 :   1573:   je     1587 <main+0x367>
+    0.00 :   1575:   mov    -0x298(%rbp),%rsi
+    0.00 :   157c:   mov    %r15,%rdi
+    0.00 :   157f:   vzeroupper
+    0.00 :   1582:   call   1180 <operator delete(void*, unsigned long)@plt>
+    0.00 :   1587:   mov    %r14,%rdi
+    0.00 :   158a:   vzeroupper
+    0.00 :   158d:   call   1150 <std::basic_ifstream<char, std::char_traits<char> >::~basic_ifstream()@plt>
+    0.00 :   1592:   mov    -0x38(%rbp),%rax
+    0.00 :   1596:   sub    %fs:0x28,%rax
+    0.00 :   159f:   je     15c1 <main+0x3a1>
+    0.00 :   15a1:   call   11a0 <__stack_chk_fail@plt>
+    0.00 :   15a6:   endbr64
+    0.00 :   15aa:   mov    %rax,%rbx
+    0.00 :   15ad:   jmp    1570 <main+0x350>
+    0.00 :   15af:   endbr64
+    0.00 :   15b3:   mov    %rax,%rbx
+    0.00 :   15b6:   jmp    1575 <main+0x355>
+    0.00 :   15b8:   endbr64
+    0.00 :   15bc:   mov    %rax,%rbx
+    0.00 :   15bf:   jmp    1587 <main+0x367>
+    0.00 :   15c1:   mov    %rbx,%rdi
+    0.00 :   15c4:   call   1200 <_Unwind_Resume@plt>
