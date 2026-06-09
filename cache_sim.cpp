@@ -122,16 +122,22 @@ struct Level {
     static constexpr int INDEX_BITS = log2_of(SETS);
     static constexpr std::uint64_t INDEX_MASK = SETS - 1;
 
+    struct Meta {
+        std::uint8_t valid;
+        std::uint8_t dirty;
+        std::uint16_t lru;
+    };
+
     alignas(64) std::array<std::uint64_t, SETS * WAYS> tag{};
-    std::array<std::uint8_t, SETS> valid{};   // 8-bit mask per set
-    std::array<std::uint8_t, SETS> dirty{};   // 8-bit mask per set
-    std::array<std::uint16_t, SETS> lru{};
+    std::array<Meta, SETS> meta{};
 
     void init() {
         tag.fill(0);
-        valid.fill(0);
-        dirty.fill(0);
-        lru.fill(kInitialLruState);
+        for (int i = 0; i < SETS; ++i) {
+            meta[i].valid = 0;
+            meta[i].dirty = 0;
+            meta[i].lru = kInitialLruState;
+        }
     }
 
     static constexpr int set_of(std::uint64_t blk) {
@@ -165,25 +171,25 @@ struct Level {
             m |= unsigned(tag[base + w] == t) << w;
         }
 #endif
-        m &= valid[si];
+        m &= meta[si].valid;
         return m ? __builtin_ctz(m) : -1;
     }
 
     void touch_mru(int si, int way) {
-        lru[si] = kLru->next_state[lru[si]][way];
+        meta[si].lru = kLru->next_state[meta[si].lru][way];
     }
 
     int victim_way(int si) const {
-        unsigned invalid = static_cast<unsigned>(static_cast<std::uint8_t>(~valid[si]));
-        return invalid ? __builtin_ctz(invalid) : kLru->victim[lru[si]];
+        unsigned invalid = static_cast<unsigned>(static_cast<std::uint8_t>(~meta[si].valid));
+        return invalid ? __builtin_ctz(invalid) : kLru->victim[meta[si].lru];
     }
 
     void set_line(int si, int way, bool v, bool d, std::uint64_t t) {
         const std::size_t base = static_cast<std::size_t>(si) * WAYS;
-        if (v) valid[si] |= (1 << way); else valid[si] &= ~(1 << way);
-        if (d) dirty[si] |= (1 << way); else dirty[si] &= ~(1 << way);
+        if (v) meta[si].valid |= (1 << way); else meta[si].valid &= ~(1 << way);
+        if (d) meta[si].dirty |= (1 << way); else meta[si].dirty &= ~(1 << way);
         tag[base + way] = t;
-        lru[si] = kLru->next_state[lru[si]][way];
+        meta[si].lru = kLru->next_state[meta[si].lru][way];
     }
 };
 
@@ -209,6 +215,10 @@ public:
         csot::CacheStats st{};
 
         for (std::size_t i = 0; i < n; ++i) {
+            // Prefetch ~16 elements ahead. 
+            // 0 = Read intention, 0 = No temporal locality (don't pollute L1/L2)
+            __builtin_prefetch(&acc[i + 16], 0, 0);
+
             const csot::MemAccess& a = acc[i];
             const bool wr = (a.is_write != 0);
             st.writes += wr;
@@ -228,7 +238,7 @@ public:
 
             if (l1_hit) {
                 l1_.touch_mru(s1, w1);
-                if (wr) l1_.dirty[s1] |= (1 << w1);
+                if (wr) l1_.meta[s1].dirty |= (1 << w1);
                 continue;
             }
 
@@ -242,13 +252,13 @@ public:
                 l2_.touch_mru(s2, w2);
             } else {
                 int victim = l2_.victim_way(s2);
-                st.dirty_writebacks += ((l2_.valid[s2] & l2_.dirty[s2]) >> victim) & 1;
+                st.dirty_writebacks += ((l2_.meta[s2].valid & l2_.meta[s2].dirty) >> victim) & 1;
                 l2_.set_line(s2, victim, true, false, t2);
             }
 
             // Fill L1, possibly write back dirty L1 victim
             int v1 = l1_.victim_way(s1);
-            if (((l1_.valid[s1] & l1_.dirty[s1]) >> v1) & 1) {
+            if (((l1_.meta[s1].valid & l1_.meta[s1].dirty) >> v1) & 1) {
                 std::uint64_t victim_tag = l1_.tag[static_cast<std::size_t>(s1) * L1::NUM_WAYS + v1];
                 std::uint64_t bv = (victim_tag << L1::INDEX_BITS) | static_cast<std::uint64_t>(s1);
                 int s2v = L2::set_of(bv);
@@ -256,10 +266,10 @@ public:
 
                 int wv = l2_.find_way(s2v, t2v);
                 if (wv >= 0) {
-                    l2_.dirty[s2v] |= (1 << wv);
+                    l2_.meta[s2v].dirty |= (1 << wv);
                 } else {
                     int vv = l2_.victim_way(s2v);
-                    st.dirty_writebacks += ((l2_.valid[s2v] & l2_.dirty[s2v]) >> vv) & 1;
+                    st.dirty_writebacks += ((l2_.meta[s2v].valid & l2_.meta[s2v].dirty) >> vv) & 1;
                     l2_.set_line(s2v, vv, true, true, t2v);
                 }
             }
