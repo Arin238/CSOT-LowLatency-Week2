@@ -89,31 +89,32 @@ struct Level {
     static constexpr std::uint64_t tag_of(std::uint64_t blk) { return blk >> INDEX_BITS; }
 
     int find_way(int si, std::uint64_t t) const {
+        int match = -1;
         for (int w = 0; w < WAYS; ++w) {
-            if (sets[si].ways[w].valid && sets[si].ways[w].tag == t) return w;
+            bool hit = sets[si].ways[w].valid & (sets[si].ways[w].tag == t);
+            match = hit ? w : match;
         }
-        return -1;
+        return match;
     }
 
     void touch_mru(int si, int way) {
         std::uint64_t target_lru = sets[si].ways[way].lru;
-        if (target_lru == 0) return;
         for (int w = 0; w < WAYS; ++w) {
-            if (sets[si].ways[w].lru < target_lru) {
-                sets[si].ways[w].lru++;
-            }
+            sets[si].ways[w].lru += (sets[si].ways[w].lru < target_lru);
         }
         sets[si].ways[way].lru = 0;
     }
 
     int victim_way(int si) const {
+        int match = 0;
+        int max_score = -1;
         for (int w = 0; w < WAYS; ++w) {
-            if (!sets[si].ways[w].valid) return w;
+            int score = (!sets[si].ways[w].valid) * 10 + sets[si].ways[w].lru;
+            bool is_better = score > max_score;
+            match = is_better ? w : match;
+            max_score = is_better ? score : max_score;
         }
-        for (int w = 0; w < WAYS; ++w) {
-            if (sets[si].ways[w].lru == WAYS - 1) return w;
-        }
-        return 0; // fallback
+        return match;
     }
 
     void set_line(int si, int way, bool v, bool d, std::uint64_t t) {
@@ -162,36 +163,40 @@ public:
             // §5.2  L1 probe
             // ----------------------------------------------------------------
             const int w1 = l1_.find_way(s1, t1);
-            if (w1 >= 0) {
-                ++st.l1_hits;
+            bool l1_hit = (w1 >= 0);
+            st.l1_hits += l1_hit;
+            st.l1_misses += !l1_hit;
+
+            if (l1_hit) {
                 l1_.touch_mru(s1, w1);
                 l1_.sets[s1].ways[w1].dirty |= wr;
                 continue;
             }
-            ++st.l1_misses;
 
             // ----------------------------------------------------------------
             // §5.3  L2 probe (only on L1 miss)
             // ----------------------------------------------------------------
             const int w2 = l2_.find_way(s2, t2);
-            if (w2 >= 0) {
-                ++st.l2_hits;
-                l2_.touch_mru(s2, w2);
-            } else {
-                ++st.l2_misses;
-                const int vl2 = l2_.victim_way(s2);
-                // Branchless: both valid and dirty are 0/1, AND gives 0/1
-                st.dirty_writebacks += l2_.sets[s2].ways[vl2].valid & l2_.sets[s2].ways[vl2].dirty;
-                l2_.set_line(s2, vl2, true, false, t2);
-            }
+            bool l2_hit = (w2 >= 0);
+            st.l2_hits += l2_hit;
+            st.l2_misses += !l2_hit;
+
+            const int vl2 = l2_hit ? w2 : l2_.victim_way(s2);
+            st.dirty_writebacks += (!l2_hit) & l2_.sets[s2].ways[vl2].valid & l2_.sets[s2].ways[vl2].dirty;
+            
+            l2_.sets[s2].ways[vl2].valid = 1;
+            l2_.sets[s2].ways[vl2].dirty &= l2_hit;
+            l2_.sets[s2].ways[vl2].tag = t2;
+            l2_.touch_mru(s2, vl2);
 
             // ----------------------------------------------------------------
             // §5.4  Fill into L1 (write-allocate).
             // If the L1 victim is dirty, write it back to L2 first (§5.5).
             // ----------------------------------------------------------------
             const int vl1 = l1_.victim_way(s1);
+            bool writeback = l1_.sets[s1].ways[vl1].valid & l1_.sets[s1].ways[vl1].dirty;
 
-            if (l1_.sets[s1].ways[vl1].valid & l1_.sets[s1].ways[vl1].dirty) {
+            if (writeback) {
                 // Reconstruct block address of dirty L1 victim
                 const std::uint64_t vtag = l1_.sets[s1].ways[vl1].tag;
                 const std::uint64_t bv   = (vtag << L1::INDEX_BITS) | static_cast<std::uint64_t>(s1);
@@ -199,11 +204,12 @@ public:
                 const std::uint64_t t2v  = L2::tag_of(bv);
 
                 const int wv = l2_.find_way(s2v, t2v);
-                if (wv >= 0) {
-                    // L2 already has this line: just mark dirty, no LRU/counter change
-                    l2_.sets[s2v].ways[wv].dirty = 1;
-                } else {
-                    // L2 doesn't have it: evict an L2 victim → memory, install dirty
+                bool wv_hit = (wv >= 0);
+                
+                int safe_wv = wv_hit ? wv : 0;
+                l2_.sets[s2v].ways[safe_wv].dirty |= wv_hit;
+
+                if (!wv_hit) {
                     const int vv = l2_.victim_way(s2v);
                     st.dirty_writebacks += l2_.sets[s2v].ways[vv].valid & l2_.sets[s2v].ways[vv].dirty;
                     l2_.set_line(s2v, vv, true, true, t2v);
