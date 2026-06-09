@@ -1,5 +1,5 @@
 // ============================================================================
-//  cache_sim.cpp — final portable version (no consteval, runtime tables)
+//  cache_sim.cpp — final branch‑free LRU, SIMD tag scan, zero alloc
 // ============================================================================
 
 #include "cache_sim.hpp"
@@ -37,8 +37,9 @@ void operator delete(void* p, std::size_t) noexcept { std::free(p); }
 namespace {
 
 constexpr int log2_of(int v) { int r = 0; while ((1 << r) < v) ++r; return r; }
+
 // ============================================================================
-// Level template – SoA layout, per‑set LRU state stored as single uint16_t
+// Level template – SoA layout, per‑set LRU state stored as uint32_t (age‑based)
 // ============================================================================
 template <int SETS, int WAYS>
 struct Level {
@@ -48,9 +49,9 @@ struct Level {
     static constexpr std::uint64_t INDEX_MASK = SETS - 1;
 
     struct Meta {
-        std::uint8_t valid;
-        std::uint8_t dirty;
-        std::uint32_t lru;
+        std::uint8_t valid;   // bitmask: 1 = valid
+        std::uint8_t dirty;   // bitmask: 1 = dirty
+        std::uint32_t lru;    // 4 bits per way, 0 = most recent, 7 = least recent
     };
 
     alignas(64) std::array<std::uint64_t, SETS * WAYS> tag{};
@@ -61,7 +62,11 @@ struct Level {
         for (int i = 0; i < SETS; ++i) {
             meta[i].valid = 0;
             meta[i].dirty = 0;
-            meta[i].lru = 0x76543210;
+            // Initial LRU: each way has its index as age (0 = most recent, 7 = least recent)
+            std::uint32_t lru = 0;
+            for (int w = 0; w < WAYS; ++w)
+                lru |= static_cast<std::uint32_t>(w) << (w * 4);
+            meta[i].lru = lru;
         }
     }
 
@@ -76,51 +81,58 @@ struct Level {
         const std::size_t base = static_cast<std::size_t>(si) * WAYS;
 #if defined(__AVX2__)
         __m256i key = _mm256_set1_epi64x(t);
-        __m256i a   = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&tag[base]));
-        __m256i b   = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&tag[base + 4]));
-        unsigned m  = unsigned(_mm256_movemask_pd(_mm256_castsi256_pd(_mm256_cmpeq_epi64(a, key))))
-                    | (unsigned(_mm256_movemask_pd(_mm256_castsi256_pd(_mm256_cmpeq_epi64(b, key)))) << 4);
+        __m256i a = _mm256_load_si256(reinterpret_cast<const __m256i*>(&tag[base]));
+        __m256i b = _mm256_load_si256(reinterpret_cast<const __m256i*>(&tag[base + 4]));
+        unsigned m = (unsigned)_mm256_movemask_pd(_mm256_castsi256_pd(_mm256_cmpeq_epi64(a, key)))
+                   | ((unsigned)_mm256_movemask_pd(_mm256_castsi256_pd(_mm256_cmpeq_epi64(b, key))) << 4);
+        _mm256_zeroupper();   // Prevent AVX‑SSE transition penalty
 #elif defined(__SSE4_1__)
         __m128i key = _mm_set1_epi64x(t);
-        __m128i a = _mm_loadu_si128(reinterpret_cast<const __m128i*>(&tag[base + 0]));
-        __m128i b = _mm_loadu_si128(reinterpret_cast<const __m128i*>(&tag[base + 2]));
-        __m128i c = _mm_loadu_si128(reinterpret_cast<const __m128i*>(&tag[base + 4]));
-        __m128i d = _mm_loadu_si128(reinterpret_cast<const __m128i*>(&tag[base + 6]));
-        unsigned m = unsigned(_mm_movemask_pd(_mm_castsi128_pd(_mm_cmpeq_epi64(a, key))))
-                   | (unsigned(_mm_movemask_pd(_mm_castsi128_pd(_mm_cmpeq_epi64(b, key)))) << 2)
-                   | (unsigned(_mm_movemask_pd(_mm_castsi128_pd(_mm_cmpeq_epi64(c, key)))) << 4)
-                   | (unsigned(_mm_movemask_pd(_mm_castsi128_pd(_mm_cmpeq_epi64(d, key)))) << 6);
+        __m128i a = _mm_load_si128(reinterpret_cast<const __m128i*>(&tag[base + 0]));
+        __m128i b = _mm_load_si128(reinterpret_cast<const __m128i*>(&tag[base + 2]));
+        __m128i c = _mm_load_si128(reinterpret_cast<const __m128i*>(&tag[base + 4]));
+        __m128i d = _mm_load_si128(reinterpret_cast<const __m128i*>(&tag[base + 6]));
+        unsigned m = (unsigned)_mm_movemask_pd(_mm_castsi128_pd(_mm_cmpeq_epi64(a, key)))
+                   | ((unsigned)_mm_movemask_pd(_mm_castsi128_pd(_mm_cmpeq_epi64(b, key))) << 2)
+                   | ((unsigned)_mm_movemask_pd(_mm_castsi128_pd(_mm_cmpeq_epi64(c, key))) << 4)
+                   | ((unsigned)_mm_movemask_pd(_mm_castsi128_pd(_mm_cmpeq_epi64(d, key))) << 6);
 #else
         unsigned m = 0;
         for (int w = 0; w < WAYS; ++w) {
-            m |= unsigned(tag[base + w] == t) << w;
+            m |= static_cast<unsigned>(tag[base + w] == t) << w;
         }
 #endif
         m &= meta[si].valid;
         return m ? __builtin_ctz(m) : -1;
     }
 
+    // Branch‑free, table‑free LRU update using SWAR bitwise ops
     void touch_mru(int si, int way) {
-        std::uint32_t lru_val = meta[si].lru;
-        std::uint32_t target_age = (lru_val >> (way * 4)) & 0xF;
-        std::uint32_t targets = target_age * 0x11111111;
-        
-        // SWAR: fields where age < target_age
-        // (8 + age - target) has MSB=1 if age >= target, MSB=0 if age < target
-        std::uint32_t geq_mask = ((lru_val | 0x88888888) - targets) & 0x88888888;
-        std::uint32_t less_mask = (~geq_mask) & 0x88888888;
-        
-        lru_val += (less_mask >> 3);
-        lru_val -= (target_age << (way * 4)); // set touched way to 0
-        meta[si].lru = lru_val;
+        // Ages: 0 = most recent, 7 = least recent.
+        // Algorithm:
+        //   1. Add 1 to every nibble → inc = lru + 0x11111111
+        //   2. Detect nibbles that overflowed (became 8..15): overflow = inc & 0x88888888
+        //   3. Clamp overflowed nibbles to 7, keep incremented others:
+        //        clamped = (inc & ~overflow) | ((overflow >> 3) * 7)
+        //   4. Set the touched way's nibble to 0:
+        //        clamped &= ~(0xF << (way * 4))
+        //   5. Store back.
+        std::uint32_t lru = meta[si].lru;
+        std::uint32_t inc = lru + 0x11111111;
+        std::uint32_t overflow = inc & 0x88888888;
+        std::uint32_t clamped = (inc & ~overflow) | ((overflow >> 3) * 7);
+        clamped &= ~(0xF << (way * 4));
+        meta[si].lru = clamped;
     }
 
     int victim_way(int si) const {
-        unsigned invalid = static_cast<unsigned>(static_cast<std::uint8_t>(~meta[si].valid));
-        if (invalid) return __builtin_ctz(invalid);
-        
+        unsigned invalid = static_cast<unsigned>(~meta[si].valid) & 0xFF;
+        if (__builtin_expect(invalid, 0)) {
+            return __builtin_ctz(invalid);
+        }
         // Find the way with age 7
-        std::uint32_t victim_mask = (meta[si].lru + 0x11111111) & 0x88888888;
+        std::uint32_t lru = meta[si].lru;
+        unsigned victim_mask = (lru + 0x11111111) & 0x88888888;
         return __builtin_ctz(victim_mask) >> 2;
     }
 
@@ -144,7 +156,7 @@ public:
         l2_.init();
     }
 
-    csot::CacheStats run(const csot::MemAccess* acc, std::size_t n) override {
+    csot::CacheStats run(const csot::MemAccess* __restrict acc, std::size_t n) override {
 #ifdef CSOT_CHECK_ALLOCS
         g_hot_path_active = true;
 #ifdef __linux__
@@ -155,9 +167,8 @@ public:
         csot::CacheStats st{};
 
         for (std::size_t i = 0; i < n; ++i) {
-            // Prefetch ~16 elements ahead. 
-            // 0 = Read intention, 0 = No temporal locality (don't pollute L1/L2)
-            __builtin_prefetch(&acc[i + 16], 0, 0);
+            // Optional prefetch – test with your trace; often redundant on modern CPUs
+            // __builtin_prefetch(&acc[i + 16], 0, 0);
 
             const csot::MemAccess& a = acc[i];
             const bool wr = (a.is_write != 0);
@@ -176,7 +187,7 @@ public:
             st.l1_hits += l1_hit;
             st.l1_misses += !l1_hit;
 
-            if (l1_hit) {
+            if (__builtin_expect(l1_hit, 1)) {
                 l1_.touch_mru(s1, w1);
                 if (wr) l1_.meta[s1].dirty |= (1 << w1);
                 continue;
