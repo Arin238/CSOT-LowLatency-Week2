@@ -109,19 +109,20 @@ struct Level {
 
     void touch_mru(int si, int way) {
         // Ages: 0 = most recent, 7 = least recent.
-        // Update: all other ages increase by 1 (saturating at 7), touched way becomes 0.
+        // Update: ONLY ages younger than the touched way increase by 1.
         std::uint32_t lru = meta[si].lru;
+        unsigned target_age = (lru >> (way * 4)) & 0xF;
         std::uint32_t new_lru = 0;
-        // Unrolled loop over 8 ways – compiler will expand, no branch mispredictions.
+        
+        // Unrolled branchless loop over 8 ways.
         for (int w = 0; w < WAYS; ++w) {
             unsigned age = (lru >> (w * 4)) & 0xF;
-            if (w == way)
-                age = 0;
-            else if (age < 7)
-                ++age;
-            // else age stays 7
+            age += (age < target_age); // Only increment if younger
             new_lru |= age << (w * 4);
         }
+        
+        // Reset the touched way to age 0
+        new_lru &= ~(0xFu << (way * 4));
         meta[si].lru = new_lru;
     }
 
