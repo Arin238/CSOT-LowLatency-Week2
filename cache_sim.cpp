@@ -218,6 +218,47 @@ using L2 = Level<512, 8>;
 // ============================================================================
 class BaselineCacheSim final : public csot::CacheSim {
 public:
+    struct MissResult { std::uint32_t l2_hit; std::uint32_t dirty_wbs; };
+
+    [[gnu::noinline, gnu::cold]]
+    MissResult handle_l1_miss(std::uint64_t b, std::uint32_t is_write) {
+        MissResult res{0, 0};
+        const int s1 = L1::set_of(b);
+        const int s2 = L2::set_of(b);
+        const std::uint64_t t2 = L2::tag_of(b);
+        int w2 = l2_.find_way(s2, t2);
+        
+        if (w2 >= 0) {
+            res.l2_hit = 1;
+            l2_.touch_mru(s2, w2);
+        } else {
+            int victim = l2_.victim_way(s2);
+            res.dirty_wbs += ((l2_.meta[s2].valid & l2_.meta[s2].dirty) >> victim) & 1;
+            l2_.set_line(s2, victim, true, false, t2);
+        }
+        
+        int v1 = l1_.victim_way(s1);
+        if (((l1_.meta[s1].valid & l1_.meta[s1].dirty) >> v1) & 1) {
+            std::uint64_t victim_tag = l1_.tag[static_cast<std::size_t>(s1) * L1::NUM_WAYS + v1];
+            std::uint64_t bv = (victim_tag << L1::INDEX_BITS) | static_cast<std::uint64_t>(s1);
+            int s2v = L2::set_of(bv);
+            std::uint64_t t2v = L2::tag_of(bv);
+
+            int wv = l2_.find_way(s2v, t2v);
+            if (wv >= 0) {
+                l2_.meta[s2v].dirty |= (1 << wv);
+            } else {
+                int wv_victim = l2_.victim_way(s2v);
+                res.dirty_wbs += ((l2_.meta[s2v].valid & l2_.meta[s2v].dirty) >> wv_victim) & 1;
+                l2_.set_line(s2v, wv_victim, true, true, t2v);
+            }
+        }
+
+        l1_.set_line(s1, v1, true, is_write, L1::tag_of(b));
+        l1_.touch_mru(s1, v1);
+        return res;
+    }
+
     void on_init() override {
         TableLRU::init();
         l1_.init();
@@ -233,70 +274,32 @@ public:
         prctl(PR_TASK_PERF_EVENTS_ENABLE);
 #endif
 #endif
-        register std::uint64_t c_writes asm("r12") = 0;
-        register std::uint64_t c_l1_hits asm("r13") = 0;
-        register std::uint64_t c_l2_hits asm("r14") = 0;
-        register std::uint64_t c_dirty_writebacks asm("r15") = 0;
+        std::uint64_t c_writes = 0;
+        std::uint64_t c_l1_hits = 0;
+        std::uint64_t c_l2_hits = 0;
+        std::uint64_t c_dirty_writebacks = 0;
 
-        for (std::size_t i = 0; i < n; ++i) {
+        const csot::MemAccess* const end = acc + n;
+        for (; acc != end; ++acc) {
             // Optional prefetch – test with your trace; often redundant on modern CPUs
-            // __builtin_prefetch(&acc[i + 16], 0, 0);
+            // __builtin_prefetch(acc + 16, 0, 0);
 
-            const csot::MemAccess& a = acc[i];
-            const std::uint32_t wr = a.is_write; // strictly 0 or 1
-            c_writes += wr;
+            const csot::MemAccess& a = *acc;
+            c_writes += a.is_write;
 
             const std::uint64_t b = a.address >> 6;
             const int s1 = L1::set_of(b);
-            const std::uint64_t t1 = L1::tag_of(b);
-            const int s2 = L2::set_of(b);
-            const std::uint64_t t2 = L2::tag_of(b);
-
-            // L1 lookup
-            int w1 = l1_.find_way(s1, t1);
-            bool l1_hit = (w1 >= 0);
-            c_l1_hits += l1_hit;
-
-            if (__builtin_expect(l1_hit, 1)) {
+            int w1 = l1_.find_way(s1, L1::tag_of(b));
+            if (__builtin_expect(w1 >= 0, 1)) {
+                c_l1_hits++;
                 l1_.touch_mru(s1, w1);
-                // Branchless dirty update: if wr is 0, (0 << w1) is 0, dirty is unchanged.
-                // If wr is 1, (1 << w1) sets the dirty bit.
-                l1_.meta[s1].dirty |= static_cast<std::uint8_t>(wr << w1);
-                continue;
-            }
-
-            // L2 lookup
-            int w2 = l2_.find_way(s2, t2);
-            bool l2_hit = (w2 >= 0);
-            c_l2_hits += l2_hit;
-
-            if (l2_hit) {
-                l2_.touch_mru(s2, w2);
+                // Branchless dirty update
+                l1_.meta[s1].dirty |= static_cast<std::uint8_t>(a.is_write << w1);
             } else {
-                int victim = l2_.victim_way(s2);
-                c_dirty_writebacks += ((l2_.meta[s2].valid & l2_.meta[s2].dirty) >> victim) & 1;
-                l2_.set_line(s2, victim, true, false, t2);
+                MissResult res = handle_l1_miss(b, a.is_write);
+                c_l2_hits += res.l2_hit;
+                c_dirty_writebacks += res.dirty_wbs;
             }
-
-            // Fill L1, possibly write back dirty L1 victim
-            int v1 = l1_.victim_way(s1);
-            if (((l1_.meta[s1].valid & l1_.meta[s1].dirty) >> v1) & 1) {
-                std::uint64_t victim_tag = l1_.tag[static_cast<std::size_t>(s1) * L1::NUM_WAYS + v1];
-                std::uint64_t bv = (victim_tag << L1::INDEX_BITS) | static_cast<std::uint64_t>(s1);
-                int s2v = L2::set_of(bv);
-                std::uint64_t t2v = L2::tag_of(bv);
-
-                int wv = l2_.find_way(s2v, t2v);
-                if (wv >= 0) {
-                    l2_.meta[s2v].dirty |= (1 << wv);
-                } else {
-                    int vv = l2_.victim_way(s2v);
-                    c_dirty_writebacks += ((l2_.meta[s2v].valid & l2_.meta[s2v].dirty) >> vv) & 1;
-                    l2_.set_line(s2v, vv, true, true, t2v);
-                }
-            }
-
-            l1_.set_line(s1, v1, true, wr, t1);
         }
 
 #ifdef CSOT_CHECK_ALLOCS
