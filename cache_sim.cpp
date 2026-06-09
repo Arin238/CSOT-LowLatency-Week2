@@ -54,16 +54,48 @@ namespace TableLRU {
     constexpr int fact[8] = {1, 1, 2, 6, 24, 120, 720, 5040};
     constexpr int kFact[7] = {5040, 720, 120, 24, 6, 2, 1}; // for encode_fast
 
-    // Fast Lehmer encoding (same as earlier encode_fast)
-    static std::uint16_t encode_fast(const std::uint8_t p[8]) {
-        std::uint8_t seen = 0;
-        std::uint16_t code = 0;
-        for (int i = 0; i < 7; ++i) {
-            const int rank = p[i] - __builtin_popcount(seen & ((1u << p[i]) - 1u));
-            seen |= (1u << p[i]);
-            code += static_cast<std::uint16_t>(rank * kFact[i]);
-        }
-        return code;
+    // Fast Lehmer encoding directly from a 64-bit integer
+    // We use destructive right shift (v >>= 8) to reduce register pressure to exactly 3 registers,
+    // completely eliminating stack spills (mov ..., 0x28(%rsp)).
+    static std::uint16_t encode_fast(std::uint64_t v) {
+        std::uint32_t seen = 0;
+        std::uint32_t code = 0;
+        std::uint32_t p;
+
+        p = v & 0xFF;
+        seen |= (1u << p);
+        code += p * 5040;
+        v >>= 8;
+
+        p = v & 0xFF;
+        code += (p - __builtin_popcount(seen & ((1u << p) - 1u))) * 720;
+        seen |= (1u << p);
+        v >>= 8;
+
+        p = v & 0xFF;
+        code += (p - __builtin_popcount(seen & ((1u << p) - 1u))) * 120;
+        seen |= (1u << p);
+        v >>= 8;
+
+        p = v & 0xFF;
+        code += (p - __builtin_popcount(seen & ((1u << p) - 1u))) * 24;
+        seen |= (1u << p);
+        v >>= 8;
+
+        p = v & 0xFF;
+        code += (p - __builtin_popcount(seen & ((1u << p) - 1u))) * 6;
+        seen |= (1u << p);
+        v >>= 8;
+
+        p = v & 0xFF;
+        code += (p - __builtin_popcount(seen & ((1u << p) - 1u))) * 2;
+        seen |= (1u << p);
+        v >>= 8;
+
+        p = v & 0xFF;
+        code += (p - __builtin_popcount(seen & ((1u << p) - 1u)));
+
+        return static_cast<std::uint16_t>(code);
     }
 
     // Fast Lehmer decoding completely unrolled to eliminate idivl
@@ -131,21 +163,33 @@ namespace TableLRU {
             decode_fast(state, perm);
             victim_way[state] = perm[7];
 
-            // Build inverse mapping for O(1) position lookup
+            // Load perm into a single 64-bit integer
+            std::uint64_t v;
+            __builtin_memcpy(&v, perm, 8);
+
+            // Fully unroll inverse mapping
             std::uint8_t inv[8];
-            for (int i = 0; i < 8; ++i) inv[perm[i]] = i;
+            inv[perm[0]] = 0;
+            inv[perm[1]] = 1;
+            inv[perm[2]] = 2;
+            inv[perm[3]] = 3;
+            inv[perm[4]] = 4;
+            inv[perm[5]] = 5;
+            inv[perm[6]] = 6;
+            inv[perm[7]] = 7;
 
             for (int w = 0; w < 8; ++w) {
                 const int pos = inv[w];
-                // Actually the permutation encodes MRU...LRU order: index 0 is MRU, index 7 is LRU.
-                // On access to way w, move w to front (MRU) and shift the prefix.
-                // So we need to place w at position 0, and shift 0..pos-1 to 1..pos.
-                // The code below does that correctly.
-                std::uint8_t tmp[8];
-                tmp[0] = w;
-                for (int i = 0; i < pos; ++i) tmp[i + 1] = perm[i];
-                for (int i = pos + 1; i < 8; ++i) tmp[i] = perm[i];
-                next_state[state][w] = encode_fast(tmp);
+                
+                // Construct the new permutation directly using 64-bit bitwise math instead of memory copies!
+                // Extract everything before `pos` and shift it left by 1 byte (<< 8).
+                // Extract everything after `pos` and leave it exactly where it is.
+                std::uint64_t lower_mask = (1ULL << (pos * 8)) - 1;
+                std::uint64_t upper_mask = (pos == 7) ? 0 : (~0ULL << ((pos + 1) * 8));
+                
+                std::uint64_t new_v = static_cast<std::uint64_t>(w) | ((v & lower_mask) << 8) | (v & upper_mask);
+                
+                next_state[state][w] = encode_fast(new_v);
             }
         }
         initialized = true;
