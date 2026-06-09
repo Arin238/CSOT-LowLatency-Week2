@@ -43,42 +43,33 @@ constexpr int log2_of(int v) { int r = 0; while ((1 << r) < v) ++r; return r; }
 // ============================================================================
 using Perm = std::array<std::uint8_t, 8>;
 
-std::uint16_t encode_perm(const Perm& p) {
+static std::uint16_t encode_fast(const Perm& p) {
+    constexpr int kFact[7] = {5040, 720, 120, 24, 6, 2, 1};
+    std::uint8_t seen = 0;
     std::uint16_t code = 0;
-    const int fact[8] = {1, 1, 2, 6, 24, 120, 720, 5040};
     for (int i = 0; i < 7; ++i) {
-        int count = 0;
-        for (int j = i + 1; j < 8; ++j)
-            if (p[j] < p[i]) ++count;
-        code += static_cast<std::uint16_t>(count * fact[7 - i]);
+        // rank among remaining = (# values < p[i]) − (# of those already placed)
+        const int rank = p[i] - __builtin_popcount(seen & ((1u << p[i]) - 1u));
+        seen |= (1u << p[i]);
+        code += static_cast<std::uint16_t>(rank * kFact[i]);
     }
     return code;
 }
 
-Perm decode_perm(std::uint16_t code) {
+static Perm decode_fast(std::uint16_t code) {
+    constexpr int kFact[8] = {5040, 720, 120, 24, 6, 2, 1, 1};
     Perm p{};
-    const int fact[8] = {1, 1, 2, 6, 24, 120, 720, 5040};
-    std::uint8_t available[8] = {0, 1, 2, 3, 4, 5, 6, 7};
+    std::uint8_t avail = 0xFF;          // bits 0-7 = elements {0..7} still available
     for (int i = 0; i < 8; ++i) {
-        int idx = code / fact[7 - i];
-        code %= fact[7 - i];
-        p[i] = available[idx];
-        for (int j = idx; j < 7 - i; ++j)
-            available[j] = available[j + 1];
+        const int idx  = code / kFact[i];
+        code           %= kFact[i];
+        // idx-th set bit: clear idx lowest set bits, then ctz
+        std::uint8_t tmp = avail;
+        for (int k = 0; k < idx; ++k) tmp &= tmp - 1;
+        p[i]  = static_cast<std::uint8_t>(__builtin_ctz(tmp));
+        avail &= ~(1u << p[i]);
     }
     return p;
-}
-
-Perm next_perm(const Perm& p, int way) {
-    Perm np = p;
-    int pos = -1;
-    for (int i = 0; i < 8; ++i)
-        if (np[i] == way) { pos = i; break; }
-    if (pos == -1) pos = 7;   // shouldn't happen
-    for (int i = pos; i > 0; --i)
-        np[i] = np[i - 1];
-    np[0] = static_cast<std::uint8_t>(way);
-    return np;
 }
 
 struct LruTables {
@@ -91,10 +82,21 @@ static const LruTables* build_lru_tables() {
     static bool init = false;
     if (!init) {
         for (std::uint16_t state = 0; state < 40320; ++state) {
-            Perm p = decode_perm(state);
+            const Perm p = decode_fast(state);
             tables.victim[state] = p[7];
-            for (int w = 0; w < 8; ++w)
-                tables.next_state[state][w] = encode_perm(next_perm(p, w));
+
+            // build inverse once per state — O(1) position lookup below
+            Perm inv{};
+            for (int i = 0; i < 8; ++i)
+                inv[p[i]] = static_cast<std::uint8_t>(i);
+
+            for (int w = 0; w < 8; ++w) {
+                Perm np = p;
+                const int pos = inv[w];                      // O(1), was O(8) scan
+                for (int i = pos; i > 0; --i) np[i] = np[i - 1];
+                np[0] = static_cast<std::uint8_t>(w);
+                tables.next_state[state][w] = encode_fast(np); // O(n), was O(n²)
+            }
         }
         init = true;
     }
@@ -106,7 +108,7 @@ inline const LruTables* kLru = build_lru_tables();
 const std::uint16_t kInitialLruState = []() {
     Perm id;
     for (int i = 0; i < 8; ++i) id[i] = static_cast<std::uint8_t>(i);
-    return encode_perm(id);
+    return encode_fast(id);
 }();
 
 // ============================================================================
