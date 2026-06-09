@@ -97,7 +97,6 @@ namespace TableLRU {
             for (int i = 0; i < 8; ++i) inv[perm[i]] = i;
 
             for (int w = 0; w < 8; ++w) {
-                std::uint8_t next_perm[8];
                 const int pos = inv[w];
                 // Shift elements before pos right by 1
                 for (int i = 0; i < pos; ++i) next_perm[i] = perm[i];
@@ -172,8 +171,7 @@ struct Level {
     int find_way(int si, std::uint64_t t) const {
         const std::size_t base = static_cast<std::size_t>(si) * WAYS;
 #if defined(__AVX2__)
-        __m256i key;
-        asm("vmovq %1, %%xmm0\n\tvpbroadcastq %%xmm0, %0" : "=y"(key) : "r"(t) : "xmm0");
+        __m256i key = _mm256_set1_epi64x(t);
         __m256i a = _mm256_load_si256(reinterpret_cast<const __m256i*>(&tag[base]));
         __m256i b = _mm256_load_si256(reinterpret_cast<const __m256i*>(&tag[base + 4]));
         unsigned m = (unsigned)_mm256_movemask_pd(_mm256_castsi256_pd(_mm256_cmpeq_epi64(a, key)))
