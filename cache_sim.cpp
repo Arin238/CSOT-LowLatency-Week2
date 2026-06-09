@@ -3,7 +3,7 @@
 // ============================================================================
 
 // UNCOMMENT THIS LINE to benchmark the 685KB True LRU lookup tables:
-// #define USE_TABLE_LRU
+#define USE_TABLE_LRU
 
 #include "cache_sim.hpp"
 
@@ -166,7 +166,6 @@ struct Level {
         __m256i b = _mm256_load_si256(reinterpret_cast<const __m256i*>(&tag[base + 4]));
         unsigned m = (unsigned)_mm256_movemask_pd(_mm256_castsi256_pd(_mm256_cmpeq_epi64(a, key)))
                    | ((unsigned)_mm256_movemask_pd(_mm256_castsi256_pd(_mm256_cmpeq_epi64(b, key))) << 4);
-        _mm256_zeroupper();   // Prevent AVX‑SSE transition penalty
 #elif defined(__SSE4_1__)
         __m128i key = _mm_set1_epi64x(t);
         __m128i a = _mm_load_si128(reinterpret_cast<const __m128i*>(&tag[base + 0]));

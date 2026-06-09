@@ -1,0 +1,1934 @@
+# To display the perf.data header info, please use --header/--header-only options.
+#
+#
+# Total Lost Samples: 0
+#
+# Samples: 469  of event 'cycles:P'
+# Event count (approx.): 390758281
+#
+# Children      Self  Command          Shared Object         Symbol                                                                                 
+# ........  ........  ...............  ....................  .......................................................................................
+#
+    99.18%     0.00%  cache_sim_runne  cache_sim_runner      [.] _start
+            |
+            ---_start
+               __libc_start_main
+               |          
+                --98.96%--0x74972e82a1ca
+                          main
+                          |          
+                          |--59.06%--(anonymous namespace)::BaselineCacheSim::run(csot::MemAccess const*, unsigned long)
+                          |          |          
+                          |           --1.11%--asm_sysvec_apic_timer_interrupt
+                          |                     sysvec_apic_timer_interrupt
+                          |                     |          
+                          |                      --0.90%--__sysvec_apic_timer_interrupt
+                          |                                hrtimer_interrupt
+                          |                                __hrtimer_run_queues
+                          |                                |          
+                          |                                 --0.67%--tick_nohz_highres_handler
+                          |                                           tick_sched_handle
+                          |                                           update_process_times
+                          |          
+                          |--17.30%--asm_exc_page_fault
+                          |          |          
+                          |           --15.46%--exc_page_fault
+                          |                     |          
+                          |                      --15.01%--do_user_addr_fault
+                          |                                |          
+                          |                                 --13.68%--handle_mm_fault
+                          |                                           |          
+                          |                                            --13.46%--__handle_mm_fault
+                          |                                                      |          
+                          |                                                       --12.65%--handle_pte_fault
+                          |                                                                 |          
+                          |                                                                  --12.03%--do_anonymous_page
+                          |                                                                            |          
+                          |                                                                            |--6.09%--alloc_anon_folio
+                          |                                                                            |          |          
+                          |                                                                            |           --5.87%--vma_alloc_folio
+                          |                                                                            |                     alloc_pages_mpol
+                          |                                                                            |                     |          
+                          |                                                                            |                      --5.66%--__alloc_pages
+                          |                                                                            |                                |          
+                          |                                                                            |                                 --4.54%--get_page_from_freelist
+                          |                                                                            |                                           |          
+                          |                                                                            |                                            --3.42%--clear_page_erms
+                          |                                                                            |          
+                          |                                                                            |--3.08%--__mem_cgroup_charge
+                          |                                                                            |          |          
+                          |                                                                            |           --1.72%--try_charge_memcg
+                          |                                                                            |                     |          
+                          |                                                                            |                      --0.68%--consume_stock
+                          |                                                                            |          
+                          |                                                                            |--1.13%--folio_add_lru_vma
+                          |                                                                            |          folio_add_lru
+                          |                                                                            |          |          
+                          |                                                                            |           --0.91%--folio_batch_move_lru
+                          |                                                                            |          
+                          |                                                                             --0.84%--folio_add_new_anon_rmap
+                          |                                                                                       |          
+                          |                                                                                        --0.67%--__lruvec_stat_mod_folio
+                          |          
+                          |--10.39%--std::istream::read(char*, long)
+                          |          std::basic_filebuf<char, std::char_traits<char> >::xsgetn(char*, long)
+                          |          read
+                          |          entry_SYSCALL_64_after_hwframe
+                          |          do_syscall_64
+                          |          x64_sys_call
+                          |          __x64_sys_read
+                          |          ksys_read
+                          |          vfs_read
+                          |          ext4_file_read_iter
+                          |          generic_file_read_iter
+                          |          filemap_read
+                          |          |          
+                          |          |--8.75%--copy_page_to_iter
+                          |          |          |          
+                          |          |          |--8.21%--rep_movs_alternative
+                          |          |          |          
+                          |          |           --0.54%--_copy_to_iter
+                          |          |          
+                          |           --0.73%--filemap_get_pages
+                          |                     filemap_get_read_batch
+                          |          
+                          |--5.32%--__irqentry_text_end
+                          |          
+                          |--2.86%--__munmap
+                          |          entry_SYSCALL_64_after_hwframe
+                          |          do_syscall_64
+                          |          x64_sys_call
+                          |          __x64_sys_munmap
+                          |          __vm_munmap
+                          |          do_vmi_munmap
+                          |          do_vmi_align_munmap
+                          |          unmap_region
+                          |          unmap_vmas
+                          |          unmap_single_vma
+                          |          unmap_page_range
+                          |          zap_pmd_range.isra.0
+                          |          zap_pte_range
+                          |          |          
+                          |          |--1.76%--tlb_flush_mmu
+                          |          |          tlb_batch_pages_flush
+                          |          |          free_pages_and_swap_cache
+                          |          |          release_pages
+                          |          |          |          
+                          |          |           --1.32%--free_unref_page_list
+                          |          |                     |          
+                          |          |                      --1.10%--free_unref_page_commit
+                          |          |                                |          
+                          |          |                                 --0.89%--free_pcppages_bulk
+                          |          |                                           __free_one_page
+                          |          |          
+                          |           --0.66%--folio_remove_rmap_ptes
+                          |                     __lruvec_stat_mod_folio
+                          |          
+                          |--0.62%--sync_regs
+                          |          
+                           --0.55%--error_entry
+
+    99.18%     0.00%  cache_sim_runne  libc.so.6             [.] __libc_start_main
+            |
+            ---__libc_start_main
+               |          
+                --98.96%--0x74972e82a1ca
+                          main
+                          |          
+                          |--59.06%--(anonymous namespace)::BaselineCacheSim::run(csot::MemAccess const*, unsigned long)
+                          |          |          
+                          |           --1.11%--asm_sysvec_apic_timer_interrupt
+                          |                     sysvec_apic_timer_interrupt
+                          |                     |          
+                          |                      --0.90%--__sysvec_apic_timer_interrupt
+                          |                                hrtimer_interrupt
+                          |                                __hrtimer_run_queues
+                          |                                |          
+                          |                                 --0.67%--tick_nohz_highres_handler
+                          |                                           tick_sched_handle
+                          |                                           update_process_times
+                          |          
+                          |--17.30%--asm_exc_page_fault
+                          |          |          
+                          |           --15.46%--exc_page_fault
+                          |                     |          
+                          |                      --15.01%--do_user_addr_fault
+                          |                                |          
+                          |                                 --13.68%--handle_mm_fault
+                          |                                           |          
+                          |                                            --13.46%--__handle_mm_fault
+                          |                                                      |          
+                          |                                                       --12.65%--handle_pte_fault
+                          |                                                                 |          
+                          |                                                                  --12.03%--do_anonymous_page
+                          |                                                                            |          
+                          |                                                                            |--6.09%--alloc_anon_folio
+                          |                                                                            |          |          
+                          |                                                                            |           --5.87%--vma_alloc_folio
+                          |                                                                            |                     alloc_pages_mpol
+                          |                                                                            |                     |          
+                          |                                                                            |                      --5.66%--__alloc_pages
+                          |                                                                            |                                |          
+                          |                                                                            |                                 --4.54%--get_page_from_freelist
+                          |                                                                            |                                           |          
+                          |                                                                            |                                            --3.42%--clear_page_erms
+                          |                                                                            |          
+                          |                                                                            |--3.08%--__mem_cgroup_charge
+                          |                                                                            |          |          
+                          |                                                                            |           --1.72%--try_charge_memcg
+                          |                                                                            |                     |          
+                          |                                                                            |                      --0.68%--consume_stock
+                          |                                                                            |          
+                          |                                                                            |--1.13%--folio_add_lru_vma
+                          |                                                                            |          folio_add_lru
+                          |                                                                            |          |          
+                          |                                                                            |           --0.91%--folio_batch_move_lru
+                          |                                                                            |          
+                          |                                                                             --0.84%--folio_add_new_anon_rmap
+                          |                                                                                       |          
+                          |                                                                                        --0.67%--__lruvec_stat_mod_folio
+                          |          
+                          |--10.39%--std::istream::read(char*, long)
+                          |          std::basic_filebuf<char, std::char_traits<char> >::xsgetn(char*, long)
+                          |          read
+                          |          entry_SYSCALL_64_after_hwframe
+                          |          do_syscall_64
+                          |          x64_sys_call
+                          |          __x64_sys_read
+                          |          ksys_read
+                          |          vfs_read
+                          |          ext4_file_read_iter
+                          |          generic_file_read_iter
+                          |          filemap_read
+                          |          |          
+                          |          |--8.75%--copy_page_to_iter
+                          |          |          |          
+                          |          |          |--8.21%--rep_movs_alternative
+                          |          |          |          
+                          |          |           --0.54%--_copy_to_iter
+                          |          |          
+                          |           --0.73%--filemap_get_pages
+                          |                     filemap_get_read_batch
+                          |          
+                          |--5.32%--__irqentry_text_end
+                          |          
+                          |--2.86%--__munmap
+                          |          entry_SYSCALL_64_after_hwframe
+                          |          do_syscall_64
+                          |          x64_sys_call
+                          |          __x64_sys_munmap
+                          |          __vm_munmap
+                          |          do_vmi_munmap
+                          |          do_vmi_align_munmap
+                          |          unmap_region
+                          |          unmap_vmas
+                          |          unmap_single_vma
+                          |          unmap_page_range
+                          |          zap_pmd_range.isra.0
+                          |          zap_pte_range
+                          |          |          
+                          |          |--1.76%--tlb_flush_mmu
+                          |          |          tlb_batch_pages_flush
+                          |          |          free_pages_and_swap_cache
+                          |          |          release_pages
+                          |          |          |          
+                          |          |           --1.32%--free_unref_page_list
+                          |          |                     |          
+                          |          |                      --1.10%--free_unref_page_commit
+                          |          |                                |          
+                          |          |                                 --0.89%--free_pcppages_bulk
+                          |          |                                           __free_one_page
+                          |          |          
+                          |           --0.66%--folio_remove_rmap_ptes
+                          |                     __lruvec_stat_mod_folio
+                          |          
+                          |--0.62%--sync_regs
+                          |          
+                           --0.55%--error_entry
+
+    98.96%     0.00%  cache_sim_runne  libc.so.6             [.] 0x000074972e82a1ca
+            |
+            ---0x74972e82a1ca
+               main
+               |          
+               |--59.06%--(anonymous namespace)::BaselineCacheSim::run(csot::MemAccess const*, unsigned long)
+               |          |          
+               |           --1.11%--asm_sysvec_apic_timer_interrupt
+               |                     sysvec_apic_timer_interrupt
+               |                     |          
+               |                      --0.90%--__sysvec_apic_timer_interrupt
+               |                                hrtimer_interrupt
+               |                                __hrtimer_run_queues
+               |                                |          
+               |                                 --0.67%--tick_nohz_highres_handler
+               |                                           tick_sched_handle
+               |                                           update_process_times
+               |          
+               |--17.30%--asm_exc_page_fault
+               |          |          
+               |           --15.46%--exc_page_fault
+               |                     |          
+               |                      --15.01%--do_user_addr_fault
+               |                                |          
+               |                                 --13.68%--handle_mm_fault
+               |                                           |          
+               |                                            --13.46%--__handle_mm_fault
+               |                                                      |          
+               |                                                       --12.65%--handle_pte_fault
+               |                                                                 |          
+               |                                                                  --12.03%--do_anonymous_page
+               |                                                                            |          
+               |                                                                            |--6.09%--alloc_anon_folio
+               |                                                                            |          |          
+               |                                                                            |           --5.87%--vma_alloc_folio
+               |                                                                            |                     alloc_pages_mpol
+               |                                                                            |                     |          
+               |                                                                            |                      --5.66%--__alloc_pages
+               |                                                                            |                                |          
+               |                                                                            |                                 --4.54%--get_page_from_freelist
+               |                                                                            |                                           |          
+               |                                                                            |                                            --3.42%--clear_page_erms
+               |                                                                            |          
+               |                                                                            |--3.08%--__mem_cgroup_charge
+               |                                                                            |          |          
+               |                                                                            |           --1.72%--try_charge_memcg
+               |                                                                            |                     |          
+               |                                                                            |                      --0.68%--consume_stock
+               |                                                                            |          
+               |                                                                            |--1.13%--folio_add_lru_vma
+               |                                                                            |          folio_add_lru
+               |                                                                            |          |          
+               |                                                                            |           --0.91%--folio_batch_move_lru
+               |                                                                            |          
+               |                                                                             --0.84%--folio_add_new_anon_rmap
+               |                                                                                       |          
+               |                                                                                        --0.67%--__lruvec_stat_mod_folio
+               |          
+               |--10.39%--std::istream::read(char*, long)
+               |          std::basic_filebuf<char, std::char_traits<char> >::xsgetn(char*, long)
+               |          read
+               |          entry_SYSCALL_64_after_hwframe
+               |          do_syscall_64
+               |          x64_sys_call
+               |          __x64_sys_read
+               |          ksys_read
+               |          vfs_read
+               |          ext4_file_read_iter
+               |          generic_file_read_iter
+               |          filemap_read
+               |          |          
+               |          |--8.75%--copy_page_to_iter
+               |          |          |          
+               |          |          |--8.21%--rep_movs_alternative
+               |          |          |          
+               |          |           --0.54%--_copy_to_iter
+               |          |          
+               |           --0.73%--filemap_get_pages
+               |                     filemap_get_read_batch
+               |          
+               |--5.32%--__irqentry_text_end
+               |          
+               |--2.86%--__munmap
+               |          entry_SYSCALL_64_after_hwframe
+               |          do_syscall_64
+               |          x64_sys_call
+               |          __x64_sys_munmap
+               |          __vm_munmap
+               |          do_vmi_munmap
+               |          do_vmi_align_munmap
+               |          unmap_region
+               |          unmap_vmas
+               |          unmap_single_vma
+               |          unmap_page_range
+               |          zap_pmd_range.isra.0
+               |          zap_pte_range
+               |          |          
+               |          |--1.76%--tlb_flush_mmu
+               |          |          tlb_batch_pages_flush
+               |          |          free_pages_and_swap_cache
+               |          |          release_pages
+               |          |          |          
+               |          |           --1.32%--free_unref_page_list
+               |          |                     |          
+               |          |                      --1.10%--free_unref_page_commit
+               |          |                                |          
+               |          |                                 --0.89%--free_pcppages_bulk
+               |          |                                           __free_one_page
+               |          |          
+               |           --0.66%--folio_remove_rmap_ptes
+               |                     __lruvec_stat_mod_folio
+               |          
+               |--0.62%--sync_regs
+               |          
+                --0.55%--error_entry
+
+    98.96%     3.62%  cache_sim_runne  cache_sim_runner      [.] main
+            |          
+            |--95.33%--main
+            |          |          
+            |          |--59.06%--(anonymous namespace)::BaselineCacheSim::run(csot::MemAccess const*, unsigned long)
+            |          |          |          
+            |          |           --1.11%--asm_sysvec_apic_timer_interrupt
+            |          |                     sysvec_apic_timer_interrupt
+            |          |                     |          
+            |          |                      --0.90%--__sysvec_apic_timer_interrupt
+            |          |                                hrtimer_interrupt
+            |          |                                __hrtimer_run_queues
+            |          |                                |          
+            |          |                                 --0.67%--tick_nohz_highres_handler
+            |          |                                           tick_sched_handle
+            |          |                                           update_process_times
+            |          |          
+            |          |--15.46%--asm_exc_page_fault
+            |          |          exc_page_fault
+            |          |          |          
+            |          |           --15.01%--do_user_addr_fault
+            |          |                     |          
+            |          |                      --13.68%--handle_mm_fault
+            |          |                                |          
+            |          |                                 --13.46%--__handle_mm_fault
+            |          |                                           |          
+            |          |                                            --12.65%--handle_pte_fault
+            |          |                                                      |          
+            |          |                                                       --12.03%--do_anonymous_page
+            |          |                                                                 |          
+            |          |                                                                 |--6.09%--alloc_anon_folio
+            |          |                                                                 |          |          
+            |          |                                                                 |           --5.87%--vma_alloc_folio
+            |          |                                                                 |                     alloc_pages_mpol
+            |          |                                                                 |                     |          
+            |          |                                                                 |                      --5.66%--__alloc_pages
+            |          |                                                                 |                                |          
+            |          |                                                                 |                                 --4.54%--get_page_from_freelist
+            |          |                                                                 |                                           |          
+            |          |                                                                 |                                            --3.42%--clear_page_erms
+            |          |                                                                 |          
+            |          |                                                                 |--3.08%--__mem_cgroup_charge
+            |          |                                                                 |          |          
+            |          |                                                                 |           --1.72%--try_charge_memcg
+            |          |                                                                 |                     |          
+            |          |                                                                 |                      --0.68%--consume_stock
+            |          |                                                                 |          
+            |          |                                                                 |--1.13%--folio_add_lru_vma
+            |          |                                                                 |          folio_add_lru
+            |          |                                                                 |          |          
+            |          |                                                                 |           --0.91%--folio_batch_move_lru
+            |          |                                                                 |          
+            |          |                                                                  --0.84%--folio_add_new_anon_rmap
+            |          |                                                                            |          
+            |          |                                                                             --0.67%--__lruvec_stat_mod_folio
+            |          |          
+            |          |--10.39%--std::istream::read(char*, long)
+            |          |          std::basic_filebuf<char, std::char_traits<char> >::xsgetn(char*, long)
+            |          |          read
+            |          |          entry_SYSCALL_64_after_hwframe
+            |          |          do_syscall_64
+            |          |          x64_sys_call
+            |          |          __x64_sys_read
+            |          |          ksys_read
+            |          |          vfs_read
+            |          |          ext4_file_read_iter
+            |          |          generic_file_read_iter
+            |          |          filemap_read
+            |          |          |          
+            |          |          |--8.75%--copy_page_to_iter
+            |          |          |          |          
+            |          |          |          |--8.21%--rep_movs_alternative
+            |          |          |          |          
+            |          |          |           --0.54%--_copy_to_iter
+            |          |          |          
+            |          |           --0.73%--filemap_get_pages
+            |          |                     filemap_get_read_batch
+            |          |          
+            |          |--5.32%--__irqentry_text_end
+            |          |          
+            |          |--2.86%--__munmap
+            |          |          entry_SYSCALL_64_after_hwframe
+            |          |          do_syscall_64
+            |          |          x64_sys_call
+            |          |          __x64_sys_munmap
+            |          |          __vm_munmap
+            |          |          do_vmi_munmap
+            |          |          do_vmi_align_munmap
+            |          |          unmap_region
+            |          |          unmap_vmas
+            |          |          unmap_single_vma
+            |          |          unmap_page_range
+            |          |          zap_pmd_range.isra.0
+            |          |          zap_pte_range
+            |          |          |          
+            |          |          |--1.76%--tlb_flush_mmu
+            |          |          |          tlb_batch_pages_flush
+            |          |          |          free_pages_and_swap_cache
+            |          |          |          release_pages
+            |          |          |          |          
+            |          |          |           --1.32%--free_unref_page_list
+            |          |          |                     |          
+            |          |          |                      --1.10%--free_unref_page_commit
+            |          |          |                                |          
+            |          |          |                                 --0.89%--free_pcppages_bulk
+            |          |          |                                           __free_one_page
+            |          |          |          
+            |          |           --0.66%--folio_remove_rmap_ptes
+            |          |                     __lruvec_stat_mod_folio
+            |          |          
+            |          |--0.62%--sync_regs
+            |          |          
+            |           --0.55%--error_entry
+            |          
+             --3.62%--_start
+                       __libc_start_main
+                       0x74972e82a1ca
+                       main
+                       |          
+                        --1.85%--asm_exc_page_fault
+
+    59.06%    57.72%  cache_sim_runne  cache_sim_runner      [.] (anonymous namespace)::BaselineCacheSim::run(csot::MemAccess const*, unsigned long)
+            |          
+            |--57.72%--_start
+            |          __libc_start_main
+            |          0x74972e82a1ca
+            |          main
+            |          (anonymous namespace)::BaselineCacheSim::run(csot::MemAccess const*, unsigned long)
+            |          
+             --1.34%--(anonymous namespace)::BaselineCacheSim::run(csot::MemAccess const*, unsigned long)
+                       |          
+                        --1.11%--asm_sysvec_apic_timer_interrupt
+                                  sysvec_apic_timer_interrupt
+                                  |          
+                                   --0.90%--__sysvec_apic_timer_interrupt
+                                             hrtimer_interrupt
+                                             __hrtimer_run_queues
+                                             |          
+                                              --0.67%--tick_nohz_highres_handler
+                                                        tick_sched_handle
+                                                        update_process_times
+
+    17.81%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] asm_exc_page_fault
+            |
+            ---asm_exc_page_fault
+               |          
+                --15.74%--exc_page_fault
+                          |          
+                           --15.30%--do_user_addr_fault
+                                     |          
+                                      --13.96%--handle_mm_fault
+                                                |          
+                                                 --13.74%--__handle_mm_fault
+                                                           |          
+                                                            --12.93%--handle_pte_fault
+                                                                      |          
+                                                                       --12.18%--do_anonymous_page
+                                                                                 |          
+                                                                                 |--6.24%--alloc_anon_folio
+                                                                                 |          |          
+                                                                                 |           --6.02%--vma_alloc_folio
+                                                                                 |                     alloc_pages_mpol
+                                                                                 |                     |          
+                                                                                 |                      --5.80%--__alloc_pages
+                                                                                 |                                |          
+                                                                                 |                                 --4.69%--get_page_from_freelist
+                                                                                 |                                           |          
+                                                                                 |                                            --3.56%--clear_page_erms
+                                                                                 |          
+                                                                                 |--3.08%--__mem_cgroup_charge
+                                                                                 |          |          
+                                                                                 |           --1.72%--try_charge_memcg
+                                                                                 |                     |          
+                                                                                 |                      --0.68%--consume_stock
+                                                                                 |          
+                                                                                 |--1.13%--folio_add_lru_vma
+                                                                                 |          folio_add_lru
+                                                                                 |          |          
+                                                                                 |           --0.91%--folio_batch_move_lru
+                                                                                 |          
+                                                                                  --0.84%--folio_add_new_anon_rmap
+                                                                                            |          
+                                                                                             --0.67%--__lruvec_stat_mod_folio
+
+    15.74%     0.22%  cache_sim_runne  [kernel.kallsyms]     [k] exc_page_fault
+            |          
+             --15.52%--exc_page_fault
+                       |          
+                        --15.30%--do_user_addr_fault
+                                  |          
+                                   --13.96%--handle_mm_fault
+                                             |          
+                                              --13.74%--__handle_mm_fault
+                                                        |          
+                                                         --12.93%--handle_pte_fault
+                                                                   |          
+                                                                    --12.18%--do_anonymous_page
+                                                                              |          
+                                                                              |--6.24%--alloc_anon_folio
+                                                                              |          |          
+                                                                              |           --6.02%--vma_alloc_folio
+                                                                              |                     alloc_pages_mpol
+                                                                              |                     |          
+                                                                              |                      --5.80%--__alloc_pages
+                                                                              |                                |          
+                                                                              |                                 --4.69%--get_page_from_freelist
+                                                                              |                                           |          
+                                                                              |                                            --3.56%--clear_page_erms
+                                                                              |          
+                                                                              |--3.08%--__mem_cgroup_charge
+                                                                              |          |          
+                                                                              |           --1.72%--try_charge_memcg
+                                                                              |                     |          
+                                                                              |                      --0.68%--consume_stock
+                                                                              |          
+                                                                              |--1.13%--folio_add_lru_vma
+                                                                              |          folio_add_lru
+                                                                              |          |          
+                                                                              |           --0.91%--folio_batch_move_lru
+                                                                              |          
+                                                                               --0.84%--folio_add_new_anon_rmap
+                                                                                         |          
+                                                                                          --0.67%--__lruvec_stat_mod_folio
+
+    15.30%     0.45%  cache_sim_runne  [kernel.kallsyms]     [k] do_user_addr_fault
+            |          
+             --14.85%--do_user_addr_fault
+                       |          
+                        --13.96%--handle_mm_fault
+                                  |          
+                                   --13.74%--__handle_mm_fault
+                                             |          
+                                              --12.93%--handle_pte_fault
+                                                        |          
+                                                         --12.18%--do_anonymous_page
+                                                                   |          
+                                                                   |--6.24%--alloc_anon_folio
+                                                                   |          |          
+                                                                   |           --6.02%--vma_alloc_folio
+                                                                   |                     alloc_pages_mpol
+                                                                   |                     |          
+                                                                   |                      --5.80%--__alloc_pages
+                                                                   |                                |          
+                                                                   |                                 --4.69%--get_page_from_freelist
+                                                                   |                                           |          
+                                                                   |                                            --3.56%--clear_page_erms
+                                                                   |          
+                                                                   |--3.08%--__mem_cgroup_charge
+                                                                   |          |          
+                                                                   |           --1.72%--try_charge_memcg
+                                                                   |                     |          
+                                                                   |                      --0.68%--consume_stock
+                                                                   |          
+                                                                   |--1.13%--folio_add_lru_vma
+                                                                   |          folio_add_lru
+                                                                   |          |          
+                                                                   |           --0.91%--folio_batch_move_lru
+                                                                   |          
+                                                                    --0.84%--folio_add_new_anon_rmap
+                                                                              |          
+                                                                               --0.67%--__lruvec_stat_mod_folio
+
+    14.19%     0.64%  cache_sim_runne  [kernel.kallsyms]     [k] __handle_mm_fault
+            |          
+            |--13.56%--__handle_mm_fault
+            |          |          
+            |           --12.93%--handle_pte_fault
+            |                     |          
+            |                      --12.18%--do_anonymous_page
+            |                                |          
+            |                                |--6.24%--alloc_anon_folio
+            |                                |          |          
+            |                                |           --6.02%--vma_alloc_folio
+            |                                |                     alloc_pages_mpol
+            |                                |                     |          
+            |                                |                      --5.80%--__alloc_pages
+            |                                |                                |          
+            |                                |                                 --4.69%--get_page_from_freelist
+            |                                |                                           |          
+            |                                |                                            --3.56%--clear_page_erms
+            |                                |          
+            |                                |--3.08%--__mem_cgroup_charge
+            |                                |          |          
+            |                                |           --1.72%--try_charge_memcg
+            |                                |                     |          
+            |                                |                      --0.68%--consume_stock
+            |                                |          
+            |                                |--1.13%--folio_add_lru_vma
+            |                                |          folio_add_lru
+            |                                |          |          
+            |                                |           --0.91%--folio_batch_move_lru
+            |                                |          
+            |                                 --0.84%--folio_add_new_anon_rmap
+            |                                           |          
+            |                                            --0.67%--__lruvec_stat_mod_folio
+            |          
+             --0.64%--_start
+                       __libc_start_main
+                       0x74972e82a1ca
+                       main
+                       asm_exc_page_fault
+                       exc_page_fault
+                       do_user_addr_fault
+
+    13.96%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] handle_mm_fault
+            |
+            ---handle_mm_fault
+               |          
+                --13.74%--__handle_mm_fault
+                          |          
+                           --12.93%--handle_pte_fault
+                                     |          
+                                      --12.18%--do_anonymous_page
+                                                |          
+                                                |--6.24%--alloc_anon_folio
+                                                |          |          
+                                                |           --6.02%--vma_alloc_folio
+                                                |                     alloc_pages_mpol
+                                                |                     |          
+                                                |                      --5.80%--__alloc_pages
+                                                |                                |          
+                                                |                                 --4.69%--get_page_from_freelist
+                                                |                                           |          
+                                                |                                            --3.56%--clear_page_erms
+                                                |          
+                                                |--3.08%--__mem_cgroup_charge
+                                                |          |          
+                                                |           --1.72%--try_charge_memcg
+                                                |                     |          
+                                                |                      --0.68%--consume_stock
+                                                |          
+                                                |--1.13%--folio_add_lru_vma
+                                                |          folio_add_lru
+                                                |          |          
+                                                |           --0.91%--folio_batch_move_lru
+                                                |          
+                                                 --0.84%--folio_add_new_anon_rmap
+                                                           |          
+                                                            --0.67%--__lruvec_stat_mod_folio
+
+    13.43%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] entry_SYSCALL_64_after_hwframe
+            |
+            ---entry_SYSCALL_64_after_hwframe
+               do_syscall_64
+               x64_sys_call
+               |          
+               |--10.39%--__x64_sys_read
+               |          ksys_read
+               |          vfs_read
+               |          ext4_file_read_iter
+               |          generic_file_read_iter
+               |          filemap_read
+               |          |          
+               |          |--8.75%--copy_page_to_iter
+               |          |          |          
+               |          |          |--8.21%--rep_movs_alternative
+               |          |          |          
+               |          |           --0.54%--_copy_to_iter
+               |          |          
+               |           --0.73%--filemap_get_pages
+               |                     filemap_get_read_batch
+               |          
+                --2.86%--__x64_sys_munmap
+                          __vm_munmap
+                          do_vmi_munmap
+                          do_vmi_align_munmap
+                          unmap_region
+                          unmap_vmas
+                          unmap_single_vma
+                          unmap_page_range
+                          zap_pmd_range.isra.0
+                          zap_pte_range
+                          |          
+                          |--1.76%--tlb_flush_mmu
+                          |          tlb_batch_pages_flush
+                          |          free_pages_and_swap_cache
+                          |          release_pages
+                          |          |          
+                          |           --1.32%--free_unref_page_list
+                          |                     |          
+                          |                      --1.10%--free_unref_page_commit
+                          |                                |          
+                          |                                 --0.89%--free_pcppages_bulk
+                          |                                           __free_one_page
+                          |          
+                           --0.66%--folio_remove_rmap_ptes
+                                     __lruvec_stat_mod_folio
+
+    13.43%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] do_syscall_64
+            |
+            ---do_syscall_64
+               x64_sys_call
+               |          
+               |--10.39%--__x64_sys_read
+               |          ksys_read
+               |          vfs_read
+               |          ext4_file_read_iter
+               |          generic_file_read_iter
+               |          filemap_read
+               |          |          
+               |          |--8.75%--copy_page_to_iter
+               |          |          |          
+               |          |          |--8.21%--rep_movs_alternative
+               |          |          |          
+               |          |           --0.54%--_copy_to_iter
+               |          |          
+               |           --0.73%--filemap_get_pages
+               |                     filemap_get_read_batch
+               |          
+                --2.86%--__x64_sys_munmap
+                          __vm_munmap
+                          do_vmi_munmap
+                          do_vmi_align_munmap
+                          unmap_region
+                          unmap_vmas
+                          unmap_single_vma
+                          unmap_page_range
+                          zap_pmd_range.isra.0
+                          zap_pte_range
+                          |          
+                          |--1.76%--tlb_flush_mmu
+                          |          tlb_batch_pages_flush
+                          |          free_pages_and_swap_cache
+                          |          release_pages
+                          |          |          
+                          |           --1.32%--free_unref_page_list
+                          |                     |          
+                          |                      --1.10%--free_unref_page_commit
+                          |                                |          
+                          |                                 --0.89%--free_pcppages_bulk
+                          |                                           __free_one_page
+                          |          
+                           --0.66%--folio_remove_rmap_ptes
+                                     __lruvec_stat_mod_folio
+
+    13.43%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] x64_sys_call
+            |
+            ---x64_sys_call
+               |          
+               |--10.39%--__x64_sys_read
+               |          ksys_read
+               |          vfs_read
+               |          ext4_file_read_iter
+               |          generic_file_read_iter
+               |          filemap_read
+               |          |          
+               |          |--8.75%--copy_page_to_iter
+               |          |          |          
+               |          |          |--8.21%--rep_movs_alternative
+               |          |          |          
+               |          |           --0.54%--_copy_to_iter
+               |          |          
+               |           --0.73%--filemap_get_pages
+               |                     filemap_get_read_batch
+               |          
+                --2.86%--__x64_sys_munmap
+                          __vm_munmap
+                          do_vmi_munmap
+                          do_vmi_align_munmap
+                          unmap_region
+                          unmap_vmas
+                          unmap_single_vma
+                          unmap_page_range
+                          zap_pmd_range.isra.0
+                          zap_pte_range
+                          |          
+                          |--1.76%--tlb_flush_mmu
+                          |          tlb_batch_pages_flush
+                          |          free_pages_and_swap_cache
+                          |          release_pages
+                          |          |          
+                          |           --1.32%--free_unref_page_list
+                          |                     |          
+                          |                      --1.10%--free_unref_page_commit
+                          |                                |          
+                          |                                 --0.89%--free_pcppages_bulk
+                          |                                           __free_one_page
+                          |          
+                           --0.66%--folio_remove_rmap_ptes
+                                     __lruvec_stat_mod_folio
+
+    12.93%     0.39%  cache_sim_runne  [kernel.kallsyms]     [k] handle_pte_fault
+            |          
+             --12.54%--handle_pte_fault
+                       |          
+                        --12.18%--do_anonymous_page
+                                  |          
+                                  |--6.24%--alloc_anon_folio
+                                  |          |          
+                                  |           --6.02%--vma_alloc_folio
+                                  |                     alloc_pages_mpol
+                                  |                     |          
+                                  |                      --5.80%--__alloc_pages
+                                  |                                |          
+                                  |                                 --4.69%--get_page_from_freelist
+                                  |                                           |          
+                                  |                                            --3.56%--clear_page_erms
+                                  |          
+                                  |--3.08%--__mem_cgroup_charge
+                                  |          |          
+                                  |           --1.72%--try_charge_memcg
+                                  |                     |          
+                                  |                      --0.68%--consume_stock
+                                  |          
+                                  |--1.13%--folio_add_lru_vma
+                                  |          folio_add_lru
+                                  |          |          
+                                  |           --0.91%--folio_batch_move_lru
+                                  |          
+                                   --0.84%--folio_add_new_anon_rmap
+                                             |          
+                                              --0.67%--__lruvec_stat_mod_folio
+
+    12.18%     0.22%  cache_sim_runne  [kernel.kallsyms]     [k] do_anonymous_page
+            |          
+             --11.95%--do_anonymous_page
+                       |          
+                       |--6.24%--alloc_anon_folio
+                       |          |          
+                       |           --6.02%--vma_alloc_folio
+                       |                     alloc_pages_mpol
+                       |                     |          
+                       |                      --5.80%--__alloc_pages
+                       |                                |          
+                       |                                 --4.69%--get_page_from_freelist
+                       |                                           |          
+                       |                                            --3.56%--clear_page_erms
+                       |          
+                       |--3.08%--__mem_cgroup_charge
+                       |          |          
+                       |           --1.72%--try_charge_memcg
+                       |                     |          
+                       |                      --0.68%--consume_stock
+                       |          
+                       |--1.13%--folio_add_lru_vma
+                       |          folio_add_lru
+                       |          |          
+                       |           --0.91%--folio_batch_move_lru
+                       |          
+                        --0.84%--folio_add_new_anon_rmap
+                                  |          
+                                   --0.67%--__lruvec_stat_mod_folio
+
+    10.39%     0.91%  cache_sim_runne  [kernel.kallsyms]     [k] filemap_read
+            |          
+            |--9.48%--filemap_read
+            |          |          
+            |          |--8.75%--copy_page_to_iter
+            |          |          |          
+            |          |          |--8.21%--rep_movs_alternative
+            |          |          |          
+            |          |           --0.54%--_copy_to_iter
+            |          |          
+            |           --0.73%--filemap_get_pages
+            |                     filemap_get_read_batch
+            |          
+             --0.91%--_start
+                       __libc_start_main
+                       0x74972e82a1ca
+                       main
+                       std::istream::read(char*, long)
+                       std::basic_filebuf<char, std::char_traits<char> >::xsgetn(char*, long)
+                       read
+                       entry_SYSCALL_64_after_hwframe
+                       do_syscall_64
+                       x64_sys_call
+                       __x64_sys_read
+                       ksys_read
+                       vfs_read
+                       ext4_file_read_iter
+                       generic_file_read_iter
+                       filemap_read
+
+    10.39%     0.00%  cache_sim_runne  libstdc++.so.6.0.33   [.] std::istream::read(char*, long)
+            |
+            ---std::istream::read(char*, long)
+               std::basic_filebuf<char, std::char_traits<char> >::xsgetn(char*, long)
+               read
+               entry_SYSCALL_64_after_hwframe
+               do_syscall_64
+               x64_sys_call
+               __x64_sys_read
+               ksys_read
+               vfs_read
+               ext4_file_read_iter
+               generic_file_read_iter
+               filemap_read
+               |          
+               |--8.75%--copy_page_to_iter
+               |          |          
+               |          |--8.21%--rep_movs_alternative
+               |          |          
+               |           --0.54%--_copy_to_iter
+               |          
+                --0.73%--filemap_get_pages
+                          filemap_get_read_batch
+
+    10.39%     0.00%  cache_sim_runne  libstdc++.so.6.0.33   [.] std::basic_filebuf<char, std::char_traits<char> >::xsgetn(char*, long)
+            |
+            ---std::basic_filebuf<char, std::char_traits<char> >::xsgetn(char*, long)
+               read
+               entry_SYSCALL_64_after_hwframe
+               do_syscall_64
+               x64_sys_call
+               __x64_sys_read
+               ksys_read
+               vfs_read
+               ext4_file_read_iter
+               generic_file_read_iter
+               filemap_read
+               |          
+               |--8.75%--copy_page_to_iter
+               |          |          
+               |          |--8.21%--rep_movs_alternative
+               |          |          
+               |           --0.54%--_copy_to_iter
+               |          
+                --0.73%--filemap_get_pages
+                          filemap_get_read_batch
+
+    10.39%     0.00%  cache_sim_runne  libc.so.6             [.] read
+            |
+            ---read
+               entry_SYSCALL_64_after_hwframe
+               do_syscall_64
+               x64_sys_call
+               __x64_sys_read
+               ksys_read
+               vfs_read
+               ext4_file_read_iter
+               generic_file_read_iter
+               filemap_read
+               |          
+               |--8.75%--copy_page_to_iter
+               |          |          
+               |          |--8.21%--rep_movs_alternative
+               |          |          
+               |           --0.54%--_copy_to_iter
+               |          
+                --0.73%--filemap_get_pages
+                          filemap_get_read_batch
+
+    10.39%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] __x64_sys_read
+            |
+            ---__x64_sys_read
+               ksys_read
+               vfs_read
+               ext4_file_read_iter
+               generic_file_read_iter
+               filemap_read
+               |          
+               |--8.75%--copy_page_to_iter
+               |          |          
+               |          |--8.21%--rep_movs_alternative
+               |          |          
+               |           --0.54%--_copy_to_iter
+               |          
+                --0.73%--filemap_get_pages
+                          filemap_get_read_batch
+
+    10.39%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] ksys_read
+            |
+            ---ksys_read
+               vfs_read
+               ext4_file_read_iter
+               generic_file_read_iter
+               filemap_read
+               |          
+               |--8.75%--copy_page_to_iter
+               |          |          
+               |          |--8.21%--rep_movs_alternative
+               |          |          
+               |           --0.54%--_copy_to_iter
+               |          
+                --0.73%--filemap_get_pages
+                          filemap_get_read_batch
+
+    10.39%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] vfs_read
+            |
+            ---vfs_read
+               ext4_file_read_iter
+               generic_file_read_iter
+               filemap_read
+               |          
+               |--8.75%--copy_page_to_iter
+               |          |          
+               |          |--8.21%--rep_movs_alternative
+               |          |          
+               |           --0.54%--_copy_to_iter
+               |          
+                --0.73%--filemap_get_pages
+                          filemap_get_read_batch
+
+    10.39%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] ext4_file_read_iter
+            |
+            ---ext4_file_read_iter
+               generic_file_read_iter
+               filemap_read
+               |          
+               |--8.75%--copy_page_to_iter
+               |          |          
+               |          |--8.21%--rep_movs_alternative
+               |          |          
+               |           --0.54%--_copy_to_iter
+               |          
+                --0.73%--filemap_get_pages
+                          filemap_get_read_batch
+
+    10.39%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] generic_file_read_iter
+            |
+            ---generic_file_read_iter
+               filemap_read
+               |          
+               |--8.75%--copy_page_to_iter
+               |          |          
+               |          |--8.21%--rep_movs_alternative
+               |          |          
+               |           --0.54%--_copy_to_iter
+               |          
+                --0.73%--filemap_get_pages
+                          filemap_get_read_batch
+
+     8.75%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] copy_page_to_iter
+            |
+            ---copy_page_to_iter
+               |          
+               |--8.21%--rep_movs_alternative
+               |          
+                --0.54%--_copy_to_iter
+
+     8.57%     8.57%  cache_sim_runne  [kernel.kallsyms]     [k] rep_movs_alternative
+            |
+            ---_start
+               __libc_start_main
+               0x74972e82a1ca
+               main
+               std::istream::read(char*, long)
+               std::basic_filebuf<char, std::char_traits<char> >::xsgetn(char*, long)
+               read
+               entry_SYSCALL_64_after_hwframe
+               do_syscall_64
+               x64_sys_call
+               __x64_sys_read
+               ksys_read
+               vfs_read
+               ext4_file_read_iter
+               generic_file_read_iter
+               filemap_read
+               copy_page_to_iter
+               |          
+                --8.21%--rep_movs_alternative
+
+     6.79%     0.22%  cache_sim_runne  [kernel.kallsyms]     [k] alloc_pages_mpol
+            |          
+             --6.56%--alloc_pages_mpol
+                       |          
+                        --6.35%--__alloc_pages
+                                  |          
+                                   --5.14%--get_page_from_freelist
+                                             |          
+                                              --4.02%--clear_page_erms
+
+     6.35%     1.12%  cache_sim_runne  [kernel.kallsyms]     [k] __alloc_pages
+            |          
+            |--5.23%--__alloc_pages
+            |          |          
+            |           --5.14%--get_page_from_freelist
+            |                     |          
+            |                      --4.02%--clear_page_erms
+            |          
+             --1.12%--_start
+                       __libc_start_main
+                       0x74972e82a1ca
+                       main
+                       asm_exc_page_fault
+                       exc_page_fault
+                       do_user_addr_fault
+                       handle_mm_fault
+                       __handle_mm_fault
+                       handle_pte_fault
+                       do_anonymous_page
+                       alloc_anon_folio
+                       vma_alloc_folio
+                       alloc_pages_mpol
+                       __alloc_pages
+
+     6.24%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] alloc_anon_folio
+            |
+            ---alloc_anon_folio
+               |          
+                --6.02%--vma_alloc_folio
+                          alloc_pages_mpol
+                          |          
+                           --5.80%--__alloc_pages
+                                     |          
+                                      --4.69%--get_page_from_freelist
+                                                |          
+                                                 --3.56%--clear_page_erms
+
+     6.02%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] vma_alloc_folio
+            |
+            ---vma_alloc_folio
+               alloc_pages_mpol
+               |          
+                --5.80%--__alloc_pages
+                          |          
+                           --4.69%--get_page_from_freelist
+                                     |          
+                                      --3.56%--clear_page_erms
+
+     5.47%     5.47%  cache_sim_runne  [kernel.kallsyms]     [k] __irqentry_text_end
+            |          
+             --5.32%--_start
+                       __libc_start_main
+                       0x74972e82a1ca
+                       main
+                       __irqentry_text_end
+
+     5.35%     0.67%  cache_sim_runne  [kernel.kallsyms]     [k] get_page_from_freelist
+            |          
+            |--4.69%--get_page_from_freelist
+            |          |          
+            |           --4.02%--clear_page_erms
+            |          
+             --0.67%--_start
+                       __libc_start_main
+                       0x74972e82a1ca
+                       main
+                       asm_exc_page_fault
+                       exc_page_fault
+                       do_user_addr_fault
+                       handle_mm_fault
+                       __handle_mm_fault
+                       handle_pte_fault
+                       do_anonymous_page
+                       alloc_anon_folio
+                       vma_alloc_folio
+                       alloc_pages_mpol
+
+     4.02%     4.02%  cache_sim_runne  [kernel.kallsyms]     [k] clear_page_erms
+            |          
+             --3.87%--_start
+                       __libc_start_main
+                       0x74972e82a1ca
+                       main
+                       |          
+                        --3.64%--asm_exc_page_fault
+                                  exc_page_fault
+                                  do_user_addr_fault
+                                  handle_mm_fault
+                                  __handle_mm_fault
+                                  handle_pte_fault
+                                  do_anonymous_page
+                                  |          
+                                   --3.42%--alloc_anon_folio
+                                             vma_alloc_folio
+                                             alloc_pages_mpol
+                                             __alloc_pages
+                                             get_page_from_freelist
+                                             clear_page_erms
+
+     3.08%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] __mem_cgroup_charge
+            |
+            ---__mem_cgroup_charge
+               |          
+                --1.72%--try_charge_memcg
+                          |          
+                           --0.68%--consume_stock
+
+     2.86%     0.00%  cache_sim_runne  libc.so.6             [.] __munmap
+            |
+            ---__munmap
+               entry_SYSCALL_64_after_hwframe
+               do_syscall_64
+               x64_sys_call
+               __x64_sys_munmap
+               __vm_munmap
+               do_vmi_munmap
+               do_vmi_align_munmap
+               unmap_region
+               unmap_vmas
+               unmap_single_vma
+               unmap_page_range
+               zap_pmd_range.isra.0
+               zap_pte_range
+               |          
+               |--1.76%--tlb_flush_mmu
+               |          tlb_batch_pages_flush
+               |          free_pages_and_swap_cache
+               |          release_pages
+               |          |          
+               |           --1.32%--free_unref_page_list
+               |                     |          
+               |                      --1.10%--free_unref_page_commit
+               |                                |          
+               |                                 --0.89%--free_pcppages_bulk
+               |                                           __free_one_page
+               |          
+                --0.66%--folio_remove_rmap_ptes
+                          __lruvec_stat_mod_folio
+
+     2.86%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] __x64_sys_munmap
+            |
+            ---__x64_sys_munmap
+               __vm_munmap
+               do_vmi_munmap
+               do_vmi_align_munmap
+               unmap_region
+               unmap_vmas
+               unmap_single_vma
+               unmap_page_range
+               zap_pmd_range.isra.0
+               zap_pte_range
+               |          
+               |--1.76%--tlb_flush_mmu
+               |          tlb_batch_pages_flush
+               |          free_pages_and_swap_cache
+               |          release_pages
+               |          |          
+               |           --1.32%--free_unref_page_list
+               |                     |          
+               |                      --1.10%--free_unref_page_commit
+               |                                |          
+               |                                 --0.89%--free_pcppages_bulk
+               |                                           __free_one_page
+               |          
+                --0.66%--folio_remove_rmap_ptes
+                          __lruvec_stat_mod_folio
+
+     2.86%     0.22%  cache_sim_runne  [kernel.kallsyms]     [k] zap_pte_range
+            |          
+             --2.64%--zap_pte_range
+                       |          
+                       |--1.76%--tlb_flush_mmu
+                       |          tlb_batch_pages_flush
+                       |          free_pages_and_swap_cache
+                       |          release_pages
+                       |          |          
+                       |           --1.32%--free_unref_page_list
+                       |                     |          
+                       |                      --1.10%--free_unref_page_commit
+                       |                                |          
+                       |                                 --0.89%--free_pcppages_bulk
+                       |                                           __free_one_page
+                       |          
+                        --0.66%--folio_remove_rmap_ptes
+                                  __lruvec_stat_mod_folio
+
+     2.86%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] __vm_munmap
+            |
+            ---__vm_munmap
+               do_vmi_munmap
+               do_vmi_align_munmap
+               unmap_region
+               unmap_vmas
+               unmap_single_vma
+               unmap_page_range
+               zap_pmd_range.isra.0
+               zap_pte_range
+               |          
+               |--1.76%--tlb_flush_mmu
+               |          tlb_batch_pages_flush
+               |          free_pages_and_swap_cache
+               |          release_pages
+               |          |          
+               |           --1.32%--free_unref_page_list
+               |                     |          
+               |                      --1.10%--free_unref_page_commit
+               |                                |          
+               |                                 --0.89%--free_pcppages_bulk
+               |                                           __free_one_page
+               |          
+                --0.66%--folio_remove_rmap_ptes
+                          __lruvec_stat_mod_folio
+
+     2.86%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] do_vmi_munmap
+            |
+            ---do_vmi_munmap
+               do_vmi_align_munmap
+               unmap_region
+               unmap_vmas
+               unmap_single_vma
+               unmap_page_range
+               zap_pmd_range.isra.0
+               zap_pte_range
+               |          
+               |--1.76%--tlb_flush_mmu
+               |          tlb_batch_pages_flush
+               |          free_pages_and_swap_cache
+               |          release_pages
+               |          |          
+               |           --1.32%--free_unref_page_list
+               |                     |          
+               |                      --1.10%--free_unref_page_commit
+               |                                |          
+               |                                 --0.89%--free_pcppages_bulk
+               |                                           __free_one_page
+               |          
+                --0.66%--folio_remove_rmap_ptes
+                          __lruvec_stat_mod_folio
+
+     2.86%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] do_vmi_align_munmap
+            |
+            ---do_vmi_align_munmap
+               unmap_region
+               unmap_vmas
+               unmap_single_vma
+               unmap_page_range
+               zap_pmd_range.isra.0
+               zap_pte_range
+               |          
+               |--1.76%--tlb_flush_mmu
+               |          tlb_batch_pages_flush
+               |          free_pages_and_swap_cache
+               |          release_pages
+               |          |          
+               |           --1.32%--free_unref_page_list
+               |                     |          
+               |                      --1.10%--free_unref_page_commit
+               |                                |          
+               |                                 --0.89%--free_pcppages_bulk
+               |                                           __free_one_page
+               |          
+                --0.66%--folio_remove_rmap_ptes
+                          __lruvec_stat_mod_folio
+
+     2.86%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] unmap_region
+            |
+            ---unmap_region
+               unmap_vmas
+               unmap_single_vma
+               unmap_page_range
+               zap_pmd_range.isra.0
+               zap_pte_range
+               |          
+               |--1.76%--tlb_flush_mmu
+               |          tlb_batch_pages_flush
+               |          free_pages_and_swap_cache
+               |          release_pages
+               |          |          
+               |           --1.32%--free_unref_page_list
+               |                     |          
+               |                      --1.10%--free_unref_page_commit
+               |                                |          
+               |                                 --0.89%--free_pcppages_bulk
+               |                                           __free_one_page
+               |          
+                --0.66%--folio_remove_rmap_ptes
+                          __lruvec_stat_mod_folio
+
+     2.86%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] unmap_vmas
+            |
+            ---unmap_vmas
+               unmap_single_vma
+               unmap_page_range
+               zap_pmd_range.isra.0
+               zap_pte_range
+               |          
+               |--1.76%--tlb_flush_mmu
+               |          tlb_batch_pages_flush
+               |          free_pages_and_swap_cache
+               |          release_pages
+               |          |          
+               |           --1.32%--free_unref_page_list
+               |                     |          
+               |                      --1.10%--free_unref_page_commit
+               |                                |          
+               |                                 --0.89%--free_pcppages_bulk
+               |                                           __free_one_page
+               |          
+                --0.66%--folio_remove_rmap_ptes
+                          __lruvec_stat_mod_folio
+
+     2.86%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] unmap_single_vma
+            |
+            ---unmap_single_vma
+               unmap_page_range
+               zap_pmd_range.isra.0
+               zap_pte_range
+               |          
+               |--1.76%--tlb_flush_mmu
+               |          tlb_batch_pages_flush
+               |          free_pages_and_swap_cache
+               |          release_pages
+               |          |          
+               |           --1.32%--free_unref_page_list
+               |                     |          
+               |                      --1.10%--free_unref_page_commit
+               |                                |          
+               |                                 --0.89%--free_pcppages_bulk
+               |                                           __free_one_page
+               |          
+                --0.66%--folio_remove_rmap_ptes
+                          __lruvec_stat_mod_folio
+
+     2.86%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] unmap_page_range
+            |
+            ---unmap_page_range
+               zap_pmd_range.isra.0
+               zap_pte_range
+               |          
+               |--1.76%--tlb_flush_mmu
+               |          tlb_batch_pages_flush
+               |          free_pages_and_swap_cache
+               |          release_pages
+               |          |          
+               |           --1.32%--free_unref_page_list
+               |                     |          
+               |                      --1.10%--free_unref_page_commit
+               |                                |          
+               |                                 --0.89%--free_pcppages_bulk
+               |                                           __free_one_page
+               |          
+                --0.66%--folio_remove_rmap_ptes
+                          __lruvec_stat_mod_folio
+
+     2.86%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] zap_pmd_range.isra.0
+            |
+            ---zap_pmd_range.isra.0
+               zap_pte_range
+               |          
+               |--1.76%--tlb_flush_mmu
+               |          tlb_batch_pages_flush
+               |          free_pages_and_swap_cache
+               |          release_pages
+               |          |          
+               |           --1.32%--free_unref_page_list
+               |                     |          
+               |                      --1.10%--free_unref_page_commit
+               |                                |          
+               |                                 --0.89%--free_pcppages_bulk
+               |                                           __free_one_page
+               |          
+                --0.66%--folio_remove_rmap_ptes
+                          __lruvec_stat_mod_folio
+
+     1.98%     0.23%  cache_sim_runne  [kernel.kallsyms]     [k] release_pages
+            |          
+             --1.76%--release_pages
+                       |          
+                        --1.32%--free_unref_page_list
+                                  |          
+                                   --1.10%--free_unref_page_commit
+                                             |          
+                                              --0.89%--free_pcppages_bulk
+                                                        __free_one_page
+
+     1.95%     1.10%  cache_sim_runne  [kernel.kallsyms]     [k] try_charge_memcg
+            |          
+            |--1.10%--_start
+            |          __libc_start_main
+            |          0x74972e82a1ca
+            |          main
+            |          asm_exc_page_fault
+            |          exc_page_fault
+            |          do_user_addr_fault
+            |          handle_mm_fault
+            |          __handle_mm_fault
+            |          handle_pte_fault
+            |          do_anonymous_page
+            |          __mem_cgroup_charge
+            |          |          
+            |           --0.87%--try_charge_memcg
+            |          
+             --0.85%--try_charge_memcg
+                       |          
+                        --0.68%--consume_stock
+
+     1.76%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] tlb_flush_mmu
+            |
+            ---tlb_flush_mmu
+               tlb_batch_pages_flush
+               free_pages_and_swap_cache
+               release_pages
+               |          
+                --1.32%--free_unref_page_list
+                          |          
+                           --1.10%--free_unref_page_commit
+                                     |          
+                                      --0.89%--free_pcppages_bulk
+                                                __free_one_page
+
+     1.76%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] tlb_batch_pages_flush
+            |
+            ---tlb_batch_pages_flush
+               free_pages_and_swap_cache
+               release_pages
+               |          
+                --1.32%--free_unref_page_list
+                          |          
+                           --1.10%--free_unref_page_commit
+                                     |          
+                                      --0.89%--free_pcppages_bulk
+                                                __free_one_page
+
+     1.76%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] free_pages_and_swap_cache
+            |
+            ---free_pages_and_swap_cache
+               release_pages
+               |          
+                --1.32%--free_unref_page_list
+                          |          
+                           --1.10%--free_unref_page_commit
+                                     |          
+                                      --0.89%--free_pcppages_bulk
+                                                __free_one_page
+
+     1.33%     0.44%  cache_sim_runne  [kernel.kallsyms]     [k] __mod_lruvec_state
+            |          
+             --0.89%--__mod_lruvec_state
+
+     1.33%     0.44%  cache_sim_runne  [kernel.kallsyms]     [k] __lruvec_stat_mod_folio
+            |          
+             --0.89%--__lruvec_stat_mod_folio
+                       __mod_lruvec_state
+
+     1.32%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] free_unref_page_list
+            |
+            ---free_unref_page_list
+               |          
+                --1.10%--free_unref_page_commit
+                          |          
+                           --0.89%--free_pcppages_bulk
+                                     __free_one_page
+
+     1.30%     1.30%  cache_sim_runne  [kernel.kallsyms]     [k] native_irq_return_iret
+            |
+            ---_start
+               __libc_start_main
+               0x74972e82a1ca
+               main
+
+     1.13%     0.23%  cache_sim_runne  [kernel.kallsyms]     [k] folio_add_lru
+            |          
+             --0.91%--folio_add_lru
+                       folio_batch_move_lru
+
+     1.13%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] folio_add_lru_vma
+            |
+            ---folio_add_lru_vma
+               folio_add_lru
+               |          
+                --0.91%--folio_batch_move_lru
+
+     1.11%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] asm_sysvec_apic_timer_interrupt
+            |
+            ---asm_sysvec_apic_timer_interrupt
+               sysvec_apic_timer_interrupt
+               |          
+                --0.90%--__sysvec_apic_timer_interrupt
+                          hrtimer_interrupt
+                          __hrtimer_run_queues
+                          |          
+                           --0.67%--tick_nohz_highres_handler
+                                     tick_sched_handle
+                                     update_process_times
+
+     1.11%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] sysvec_apic_timer_interrupt
+            |
+            ---sysvec_apic_timer_interrupt
+               |          
+                --0.90%--__sysvec_apic_timer_interrupt
+                          hrtimer_interrupt
+                          __hrtimer_run_queues
+                          |          
+                           --0.67%--tick_nohz_highres_handler
+                                     tick_sched_handle
+                                     update_process_times
+
+     1.10%     0.22%  cache_sim_runne  [kernel.kallsyms]     [k] free_unref_page_commit
+            |          
+             --0.89%--free_unref_page_commit
+                       free_pcppages_bulk
+                       __free_one_page
+
+     1.08%     0.85%  cache_sim_runne  [kernel.kallsyms]     [k] consume_stock
+            |          
+             --0.85%--_start
+                       __libc_start_main
+                       0x74972e82a1ca
+                       main
+                       asm_exc_page_fault
+                       exc_page_fault
+                       do_user_addr_fault
+                       handle_mm_fault
+                       __handle_mm_fault
+                       handle_pte_fault
+                       do_anonymous_page
+                       __mem_cgroup_charge
+                       try_charge_memcg
+                       |          
+                        --0.68%--consume_stock
+
+     0.91%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] folio_batch_move_lru
+            |
+            ---folio_batch_move_lru
+
+     0.90%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] __sysvec_apic_timer_interrupt
+            |
+            ---__sysvec_apic_timer_interrupt
+               hrtimer_interrupt
+               __hrtimer_run_queues
+               |          
+                --0.67%--tick_nohz_highres_handler
+                          tick_sched_handle
+                          update_process_times
+
+     0.90%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] hrtimer_interrupt
+            |
+            ---hrtimer_interrupt
+               __hrtimer_run_queues
+               |          
+                --0.67%--tick_nohz_highres_handler
+                          tick_sched_handle
+                          update_process_times
+
+     0.90%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] __hrtimer_run_queues
+            |
+            ---__hrtimer_run_queues
+               |          
+                --0.67%--tick_nohz_highres_handler
+                          tick_sched_handle
+                          update_process_times
+
+     0.89%     0.67%  cache_sim_runne  [kernel.kallsyms]     [k] __free_one_page
+            |          
+             --0.67%--_start
+                       __libc_start_main
+                       0x74972e82a1ca
+                       main
+                       __munmap
+                       entry_SYSCALL_64_after_hwframe
+                       do_syscall_64
+                       x64_sys_call
+                       __x64_sys_munmap
+                       __vm_munmap
+                       do_vmi_munmap
+                       do_vmi_align_munmap
+                       unmap_region
+                       unmap_vmas
+                       unmap_single_vma
+                       unmap_page_range
+                       zap_pmd_range.isra.0
+                       zap_pte_range
+                       tlb_flush_mmu
+                       tlb_batch_pages_flush
+                       free_pages_and_swap_cache
+                       release_pages
+                       free_unref_page_list
+                       free_unref_page_commit
+                       free_pcppages_bulk
+                       __free_one_page
+
+     0.89%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] free_pcppages_bulk
+            |
+            ---free_pcppages_bulk
+               __free_one_page
+
+     0.84%     0.16%  cache_sim_runne  [kernel.kallsyms]     [k] folio_add_new_anon_rmap
+            |          
+             --0.67%--folio_add_new_anon_rmap
+                       __lruvec_stat_mod_folio
+
+     0.78%     0.78%  cache_sim_runne  [kernel.kallsyms]     [k] error_entry
+            |
+            ---_start
+               __libc_start_main
+               0x74972e82a1ca
+               main
+               |          
+                --0.55%--error_entry
+
+     0.73%     0.73%  cache_sim_runne  [kernel.kallsyms]     [k] filemap_get_read_batch
+            |
+            ---_start
+               __libc_start_main
+               0x74972e82a1ca
+               main
+               std::istream::read(char*, long)
+               std::basic_filebuf<char, std::char_traits<char> >::xsgetn(char*, long)
+               read
+               entry_SYSCALL_64_after_hwframe
+               do_syscall_64
+               x64_sys_call
+               __x64_sys_read
+               ksys_read
+               vfs_read
+               ext4_file_read_iter
+               generic_file_read_iter
+               filemap_read
+               filemap_get_pages
+               filemap_get_read_batch
+
+     0.73%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] filemap_get_pages
+            |
+            ---filemap_get_pages
+               filemap_get_read_batch
+
+     0.67%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] tick_nohz_highres_handler
+            |
+            ---tick_nohz_highres_handler
+               tick_sched_handle
+               update_process_times
+
+     0.67%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] tick_sched_handle
+            |
+            ---tick_sched_handle
+               update_process_times
+
+     0.67%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] update_process_times
+            |
+            ---update_process_times
+
+     0.66%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] folio_remove_rmap_ptes
+            |
+            ---folio_remove_rmap_ptes
+               __lruvec_stat_mod_folio
+
+     0.63%     0.00%  cache_sim_runne  ld-linux-x86-64.so.2  [.] 0x000074972ef29548
+            |
+            ---0x74972ef29548
+               0x74972ef2a75e
+               0x74972ef28f46
+
+     0.63%     0.00%  cache_sim_runne  ld-linux-x86-64.so.2  [.] 0x000074972ef2a75e
+            |
+            ---0x74972ef2a75e
+               0x74972ef28f46
+
+     0.63%     0.00%  cache_sim_runne  ld-linux-x86-64.so.2  [.] 0x000074972ef28f46
+            |
+            ---0x74972ef28f46
+
+     0.62%     0.39%  cache_sim_runne  [kernel.kallsyms]     [k] sync_regs
+     0.55%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] alloc_pages
+            |
+            ---alloc_pages
+               alloc_pages_mpol
+               __alloc_pages
+
+     0.54%     0.18%  cache_sim_runne  [kernel.kallsyms]     [k] _copy_to_iter
+     0.45%     0.45%  cache_sim_runne  [kernel.kallsyms]     [k] get_mem_cgroup_from_mm
+     0.45%     0.23%  cache_sim_runne  [kernel.kallsyms]     [k] mem_cgroup_commit_charge
+     0.45%     0.45%  cache_sim_runne  [kernel.kallsyms]     [k] __mod_node_page_state
+     0.45%     0.45%  cache_sim_runne  [kernel.kallsyms]     [k] __count_memcg_events
+     0.45%     0.23%  cache_sim_runne  [kernel.kallsyms]     [k] lru_add_fn
+     0.45%     0.23%  cache_sim_runne  [kernel.kallsyms]     [k] lru_gen_add_folio
+     0.44%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] scheduler_tick
+     0.44%     0.44%  cache_sim_runne  [kernel.kallsyms]     [k] rmqueue_bulk
+     0.44%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] rmqueue
+     0.44%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] __rmqueue_pcplist
+     0.44%     0.22%  cache_sim_runne  [kernel.kallsyms]     [k] __mod_memcg_lruvec_state
+     0.43%     0.23%  cache_sim_runne  [kernel.kallsyms]     [k] lock_vma_under_rcu
+     0.32%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] pte_alloc_one
+     0.31%     0.31%  cache_sim_runne  [kernel.kallsyms]     [k] cgroup_rstat_updated
+     0.25%     0.00%  cache_sim_runne  ld-linux-x86-64.so.2  [.] 0x000074972ef2c789
+     0.25%     0.00%  cache_sim_runne  ld-linux-x86-64.so.2  [.] 0x000074972ef19ae3
+     0.25%     0.00%  cache_sim_runne  ld-linux-x86-64.so.2  [.] 0x000074972ef151fc
+     0.23%     0.00%  cache_sim_runne  ld-linux-x86-64.so.2  [.] 0x000074972ef2c41c
+     0.23%     0.00%  cache_sim_runne  ld-linux-x86-64.so.2  [.] 0x000074972ef0ce67
+     0.23%     0.00%  cache_sim_runne  ld-linux-x86-64.so.2  [.] _dl_catch_exception
+     0.23%     0.00%  cache_sim_runne  ld-linux-x86-64.so.2  [.] 0x000074972ef0ca2d
+     0.23%     0.23%  cache_sim_runne  [kernel.kallsyms]     [k] memcg_check_events
+     0.23%     0.23%  cache_sim_runne  [kernel.kallsyms]     [k] rb_erase
+     0.23%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] __remove_hrtimer
+     0.23%     0.23%  cache_sim_runne  [kernel.kallsyms]     [k] set_ptes.isra.0
+     0.23%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] __pte_alloc
+     0.23%     0.23%  cache_sim_runne  [kernel.kallsyms]     [k] pgd_none
+     0.23%     0.23%  cache_sim_runne  [kernel.kallsyms]     [k] post_alloc_hook
+     0.23%     0.23%  cache_sim_runne  [kernel.kallsyms]     [k] __update_load_avg_se
+     0.23%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] task_tick_fair
+     0.23%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] update_load_avg
+     0.23%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] __tlb_remove_page_size
+     0.23%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] __get_free_pages
+     0.23%     0.23%  cache_sim_runne  [kernel.kallsyms]     [k] irqentry_exit_to_user_mode
+     0.23%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] irqentry_exit
+     0.23%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] amd_clear_divider
+     0.23%     0.23%  cache_sim_runne  [kernel.kallsyms]     [k] __pte_offset_map_lock
+     0.23%     0.23%  cache_sim_runne  [kernel.kallsyms]     [k] run_posix_cpu_timers
+     0.23%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] count_memcg_events.constprop.0
+     0.22%     0.22%  cache_sim_runne  [kernel.kallsyms]     [k] pte_offset_map_nolock
+     0.22%     0.22%  cache_sim_runne  libstdc++.so.6.0.33   [.] 0x00000000001e4ce4
+     0.22%     0.00%  cache_sim_runne  libc.so.6             [.] 0x000074972e82a1d1
+     0.22%     0.00%  cache_sim_runne  libc.so.6             [.] 0x000074972e847bbe
+     0.22%     0.00%  cache_sim_runne  libc.so.6             [.] 0x000074972e847a76
+     0.22%     0.00%  cache_sim_runne  ld-linux-x86-64.so.2  [.] 0x000074972ef0f578
+     0.22%     0.00%  cache_sim_runne  ld-linux-x86-64.so.2  [.] 0x000074972ef0b0f2
+     0.22%     0.00%  cache_sim_runne  libstdc++.so.6.0.33   [.] 0x000074972ecb7acc
+     0.22%     0.00%  cache_sim_runne  libc.so.6             [.] __cxa_finalize
+     0.22%     0.00%  cache_sim_runne  libstdc++.so.6.0.33   [.] std::ostream::flush()
+     0.22%     0.22%  cache_sim_runne  [kernel.kallsyms]     [k] __mod_zone_page_state
+     0.22%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] lru_gen_del_folio.constprop.0
+     0.22%     0.22%  cache_sim_runne  [kernel.kallsyms]     [k] free_unref_page_prepare
+     0.22%     0.22%  cache_sim_runne  [kernel.kallsyms]     [k] __rcu_read_unlock
+     0.22%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] __mem_cgroup_uncharge_list
+     0.22%     0.22%  cache_sim_runne  [kernel.kallsyms]     [k] native_write_msr
+     0.22%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] perf_event_task_tick
+     0.22%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] perf_adjust_freq_unthr_context
+     0.22%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] x86_pmu_enable
+     0.22%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] intel_pmu_enable_all
+     0.21%     0.21%  cache_sim_runne  [kernel.kallsyms]     [k] fq_flush_iotlb
+     0.21%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] irq_exit_rcu
+     0.21%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] __irq_exit_rcu
+     0.21%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] handle_softirqs
+     0.21%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] run_timer_softirq
+     0.21%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] __run_timers
+     0.21%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] call_timer_fn
+     0.21%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] fq_flush_timeout
+     0.21%     0.21%  cache_sim_runne  [kernel.kallsyms]     [k] percpu_counter_add_batch
+     0.20%     0.20%  cache_sim_runne  [kernel.kallsyms]     [k] mas_walk
+     0.18%     0.18%  cache_sim_runne  [kernel.kallsyms]     [k] pud_val
+     0.15%     0.00%  cache_sim_runne  ld-linux-x86-64.so.2  [.] 0x000074972ef13529
+     0.15%     0.00%  cache_sim_runne  ld-linux-x86-64.so.2  [.] 0x000074972ef295a0
+     0.15%     0.00%  cache_sim_runne  ld-linux-x86-64.so.2  [.] 0x000074972ef0f824
+     0.15%     0.00%  cache_sim_runne  ld-linux-x86-64.so.2  [.] 0x000074972ef0f71f
+     0.15%     0.00%  cache_sim_runne  libstdc++.so.6.0.33   [.] 0x000074972ecb750c
+     0.15%     0.00%  cache_sim_runne  libstdc++.so.6.0.33   [.] std::ios_base_library_init()
+     0.15%     0.00%  cache_sim_runne  libstdc++.so.6.0.33   [.] std::locale::locale()
+     0.15%     0.00%  cache_sim_runne  libstdc++.so.6.0.33   [.] 0x000074972ece9884
+     0.15%     0.00%  cache_sim_runne  libstdc++.so.6.0.33   [.] std::locale::_Impl::_Impl(unsigned long)
+     0.14%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] do_fault
+     0.13%     0.13%  cache_sim_runne  ld-linux-x86-64.so.2  [.] 0x000000000000a852
+     0.13%     0.00%  cache_sim_runne  ld-linux-x86-64.so.2  [.] 0x000074972ef14859
+     0.12%     0.12%  cache_sim_runne  ld-linux-x86-64.so.2  [.] 0x000000000000a601
+     0.12%     0.00%  cache_sim_runne  ld-linux-x86-64.so.2  [.] 0x000074972ef14604
+     0.11%     0.00%  cache_sim_runne  ld-linux-x86-64.so.2  [.] 0x000074972ef2c6f2
+     0.11%     0.00%  cache_sim_runne  libc.so.6             [.] 0x000074972e8c870a
+     0.09%     0.00%  cache_sim_runne  ld-linux-x86-64.so.2  [.] 0x000074972ef12685
+     0.09%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] do_read_fault
+     0.09%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] __memcg_kmem_charge_page
+     0.09%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] memcg_account_kmem
+     0.09%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] mod_memcg_state
+     0.08%     0.08%  cache_sim_runne  [kernel.kallsyms]     [k] __d_lookup_rcu
+     0.08%     0.00%  cache_sim_runne  ld-linux-x86-64.so.2  [.] 0x000074972ef13817
+     0.08%     0.00%  cache_sim_runne  ld-linux-x86-64.so.2  [.] 0x000074972ef0fcbc
+     0.08%     0.00%  cache_sim_runne  ld-linux-x86-64.so.2  [.] 0x000074972ef2fb71
+     0.08%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] __x64_sys_openat
+     0.08%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] do_sys_openat2
+     0.08%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] do_filp_open
+     0.08%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] path_openat
+     0.08%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] link_path_walk.part.0.constprop.0
+     0.08%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] walk_component
+     0.08%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] lookup_fast
+     0.06%     0.06%  cache_sim_runne  [kernel.kallsyms]     [k] vma_interval_tree_insert
+     0.06%     0.00%  cache_sim_runne  ld-linux-x86-64.so.2  [.] 0x000074972ef11e18
+     0.06%     0.00%  cache_sim_runne  ld-linux-x86-64.so.2  [.] 0x000074972ef2fd2c
+     0.06%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] __x64_sys_mmap
+     0.06%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] ksys_mmap_pgoff
+     0.06%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] vm_mmap_pgoff
+     0.06%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] do_mmap
+     0.06%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] mmap_region
+     0.06%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] __mmap_region
+     0.04%     0.04%  cache_sim_runne  [kernel.kallsyms]     [k] blk_cgroup_congested
+     0.04%     0.00%  cache_sim_runne  [unknown]             [k] 0x0000740ca72eef3b
+     0.04%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] __x64_sys_execve
+     0.04%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] do_execveat_common.isra.0
+     0.04%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] bprm_execve
+     0.04%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] bprm_execve.part.0
+     0.04%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] exec_binprm
+     0.04%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] search_binary_handler
+     0.04%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] load_elf_binary
+     0.04%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] load_elf_interp.isra.0
+     0.04%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] rep_stos_alternative
+     0.04%     0.00%  cache_sim_runne  [kernel.kallsyms]     [k] __folio_throttle_swaprate
+     0.04%     0.00%  cache_sim_runne  ld-linux-x86-64.so.2  [.] 0x000074972ef2b0f8
+
+
+#
+# (Cannot load tips.txt file, please install perf!)
+#
