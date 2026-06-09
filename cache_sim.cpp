@@ -1,5 +1,5 @@
 // ============================================================================
-//  cache_sim.cpp — final portable version (no consteval, runtime tables)
+//  cache_sim.cpp — branchless hot path, mask+ctz everywhere possible
 // ============================================================================
 
 #include "cache_sim.hpp"
@@ -48,7 +48,6 @@ static std::uint16_t encode_fast(const Perm& p) {
     std::uint8_t seen = 0;
     std::uint16_t code = 0;
     for (int i = 0; i < 7; ++i) {
-        // rank among remaining = (# values < p[i]) − (# of those already placed)
         const int rank = p[i] - __builtin_popcount(seen & ((1u << p[i]) - 1u));
         seen |= (1u << p[i]);
         code += static_cast<std::uint16_t>(rank * kFact[i]);
@@ -59,11 +58,10 @@ static std::uint16_t encode_fast(const Perm& p) {
 static Perm decode_fast(std::uint16_t code) {
     constexpr int kFact[8] = {5040, 720, 120, 24, 6, 2, 1, 1};
     Perm p{};
-    std::uint8_t avail = 0xFF;          // bits 0-7 = elements {0..7} still available
+    std::uint8_t avail = 0xFF;
     for (int i = 0; i < 8; ++i) {
         const int idx  = code / kFact[i];
         code           %= kFact[i];
-        // idx-th set bit: clear idx lowest set bits, then ctz
         std::uint8_t tmp = avail;
         for (int k = 0; k < idx; ++k) tmp &= tmp - 1;
         p[i]  = static_cast<std::uint8_t>(__builtin_ctz(tmp));
@@ -85,17 +83,16 @@ static const LruTables* build_lru_tables() {
             const Perm p = decode_fast(state);
             tables.victim[state] = p[7];
 
-            // build inverse once per state — O(1) position lookup below
             Perm inv{};
             for (int i = 0; i < 8; ++i)
                 inv[p[i]] = static_cast<std::uint8_t>(i);
 
             for (int w = 0; w < 8; ++w) {
                 Perm np = p;
-                const int pos = inv[w];                      // O(1), was O(8) scan
+                const int pos = inv[w];
                 for (int i = pos; i > 0; --i) np[i] = np[i - 1];
                 np[0] = static_cast<std::uint8_t>(w);
-                tables.next_state[state][w] = encode_fast(np); // O(n), was O(n²)
+                tables.next_state[state][w] = encode_fast(np);
             }
         }
         init = true;
@@ -112,7 +109,7 @@ const std::uint16_t kInitialLruState = []() {
 }();
 
 // ============================================================================
-// Level template – SoA layout, per‑set LRU state stored as single uint16_t
+// Level template – SoA layout, branchless mask+ctz for find/victim
 // ============================================================================
 template <int SETS, int WAYS>
 struct Level {
@@ -124,7 +121,7 @@ struct Level {
     alignas(64) std::array<std::uint64_t, SETS * WAYS> tag{};
     alignas(64) std::array<std::uint8_t,  SETS * WAYS> valid{};
     alignas(64) std::array<std::uint8_t,  SETS * WAYS> dirty{};
-    std::array<std::uint16_t, SETS> lru{};   // one LRU state per set
+    std::array<std::uint16_t, SETS> lru{};
 
     void init() {
         tag.fill(0);
@@ -140,22 +137,37 @@ struct Level {
         return blk >> INDEX_BITS;
     }
 
+    // branchless find: returns way (0..WAYS-1) or -1 if not found
     int find_way(int si, std::uint64_t t) const {
         const std::size_t base = static_cast<std::size_t>(si) * WAYS;
-        for (int w = 0; w < WAYS; ++w)
-            if (valid[base + w] && tag[base + w] == t) return w;
-        return -1;
+        unsigned mask = 0;
+        for (int w = 0; w < WAYS; ++w) {
+            const bool match = (tag[base + w] == t) & (valid[base + w] != 0);
+            mask |= static_cast<unsigned>(match) << w;
+        }
+        return mask ? static_cast<int>(__builtin_ctz(mask)) : -1;
     }
 
     void touch_mru(int si, int way) {
         lru[si] = kLru->next_state[lru[si]][way];
     }
 
+    // branchless victim: first invalid way, otherwise LRU victim
     int victim_way(int si) const {
         const std::size_t base = static_cast<std::size_t>(si) * WAYS;
-        for (int w = 0; w < WAYS; ++w)
-            if (!valid[base + w]) return w;
-        return kLru->victim[lru[si]];
+        unsigned invalid_mask = 0;
+        for (int w = 0; w < WAYS; ++w) {
+            invalid_mask |= (valid[base + w] == 0) << w;
+        }
+
+        // If any invalid way exists, use its index; else use LRU victim.
+        // branchless select: mask = - (invalid_mask != 0)
+        const int has_invalid = (invalid_mask != 0);
+        const unsigned select_mask = -static_cast<unsigned>(has_invalid); // all ones if true
+        const unsigned ctz_val = __builtin_ctz(invalid_mask); // safe only if invalid_mask != 0
+        const unsigned lru_victim = kLru->victim[lru[si]];
+        const unsigned victim = (ctz_val & select_mask) | (lru_victim & ~select_mask);
+        return static_cast<int>(victim);
     }
 
     void set_line(int si, int way, bool v, bool d, std::uint64_t t) {
@@ -200,13 +212,13 @@ public:
             const int s2 = L2::set_of(b);
             const std::uint64_t t2 = L2::tag_of(b);
 
-            // L1 lookup
+            // L1 lookup – branchless find_way
             int w1 = l1_.find_way(s1, t1);
             bool l1_hit = (w1 >= 0);
             st.l1_hits += l1_hit;
             st.l1_misses += !l1_hit;
 
-            if (l1_hit) {
+            if (l1_hit) {   // single branch per access – acceptable
                 l1_.touch_mru(s1, w1);
                 l1_.dirty[static_cast<std::size_t>(s1) * L1::NUM_WAYS + w1] |= wr;
                 continue;
