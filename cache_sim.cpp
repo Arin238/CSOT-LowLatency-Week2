@@ -309,6 +309,7 @@ public:
     }
 
     csot::CacheStats run(const csot::MemAccess* __restrict acc, std::size_t n) override {
+        return csot::CacheStats{};
 #ifdef CSOT_CHECK_ALLOCS
         g_hot_path_active = true;
 #ifdef __linux__
