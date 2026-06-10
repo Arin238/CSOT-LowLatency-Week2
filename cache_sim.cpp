@@ -130,22 +130,16 @@ struct Level {
     static constexpr int INDEX_BITS = log2_of(SETS);
     static constexpr std::uint64_t INDEX_MASK = SETS - 1;
 
-    struct Meta {
-        std::uint8_t valid;   // bitmask: 1 = valid
-        std::uint8_t dirty;   // bitmask: 1 = dirty
-        std::uint16_t lru;    // permutation ID 0..40319
-    };
-
     alignas(64) std::array<std::uint64_t, SETS * WAYS> tag{};
-    std::array<Meta, SETS> meta{};
+    alignas(64) std::array<std::uint8_t, SETS> valid{};
+    alignas(64) std::array<std::uint8_t, SETS> dirty{};
+    alignas(64) std::array<std::uint16_t, SETS> lru{};
 
     void init() {
         tag.fill(~0ULL); // Initialize with all 1s (physically impossible tag, acts as invalid)
-        for (int i = 0; i < SETS; ++i) {
-            meta[i].valid = 0;
-            meta[i].dirty = 0;
-            meta[i].lru = 0;
-        }
+        valid.fill(0);
+        dirty.fill(0);
+        lru.fill(0);
     }
 
     static constexpr int set_of(std::uint64_t blk) {
@@ -153,6 +147,18 @@ struct Level {
     }
     static constexpr std::uint64_t tag_of(std::uint64_t blk) {
         return blk >> INDEX_BITS;
+    }
+
+    template <int W>
+    [[gnu::always_inline]] static inline void check_way(const std::uint64_t* tag, std::uint64_t t, unsigned& m) {
+        m |= static_cast<unsigned>(tag[W] == t) << W;
+    }
+
+    template <int... Ws>
+    [[gnu::always_inline]] static inline unsigned check_all_ways(const std::uint64_t* tag, std::uint64_t t, std::integer_sequence<int, Ws...>) {
+        unsigned m = 0;
+        (check_way<Ws>(tag, t, m), ...);
+        return m;
     }
 
     [[gnu::always_inline]] int find_way(int si, std::uint64_t t) const {
@@ -183,38 +189,30 @@ struct Level {
                    | ((unsigned)_mm_movemask_pd(_mm_castsi128_pd(_mm_cmpeq_epi64(c, key))) << 4)
                    | ((unsigned)_mm_movemask_pd(_mm_castsi128_pd(_mm_cmpeq_epi64(d, key))) << 6);
 #else
-        unsigned m = 0;
-        for (int w = 0; w < WAYS; ++w) {
-            m |= static_cast<unsigned>(tag[base + w] == t) << w;
-        }
+        unsigned m = check_all_ways(tag.data() + base, t, std::make_integer_sequence<int, WAYS>{});
 #endif
         // No need for 'm &= meta[si].valid' because invalid tags are ~0ULL, which will never match 't'
         return m ? __builtin_ctz(m) : -1;
     }
 
     [[gnu::always_inline]] void touch_mru(int si, int way) {
-        meta[si].lru = TableLRU::next_state[meta[si].lru][way];
+        lru[si] = TableLRU::next_state[lru[si]][way];
     }
 
     [[gnu::always_inline]] int victim_way(int si) const {
-        unsigned invalid = static_cast<unsigned>(~meta[si].valid) & 0xFF;
+        unsigned invalid = static_cast<unsigned>(~valid[si]) & 0xFF;
         if (__builtin_expect(invalid, 0)) {
             return __builtin_ctz(invalid);
         }
-        return TableLRU::victim_way[meta[si].lru];
+        return TableLRU::victim_way[lru[si]];
     }
 
     [[gnu::always_inline]] void set_line(int si, int way, bool v, bool d, std::uint64_t t) {
         tag[static_cast<std::size_t>(si) * WAYS + way] = t;
         
-        // Branchless bitwise valid update (v is always true in practice)
-        meta[si].valid |= static_cast<std::uint8_t>(1 << way);
-        
-        // Branchless dirty bit manipulation using two's complement negation (-d)
-        // If d=1, -d = 0xFFFFFFFF, (-d & mask) sets the bit
-        // If d=0, -d = 0x00000000, (-d & mask) clears the bit
         std::uint8_t mask = 1 << way;
-        meta[si].dirty = (meta[si].dirty & ~mask) | (-static_cast<int>(d) & mask);
+        valid[si] = (valid[si] & ~mask) | (-static_cast<int>(v) & mask);
+        dirty[si] = (dirty[si] & ~mask) | (-static_cast<int>(d) & mask);
         
         touch_mru(si, way);
     }
@@ -232,6 +230,82 @@ public:
         l2_.init();
     }
 
+    [[gnu::always_inline]] void process_one(const csot::MemAccess* __restrict acc, 
+                                            std::uint64_t& c_writes,
+                                            std::uint64_t& c_l1_misses,
+                                            std::uint64_t& c_l2_hits,
+                                            std::uint64_t& c_dirty_writebacks) {
+        __builtin_prefetch(acc + 8, 0, 0);
+
+        const std::uint32_t wr = acc->is_write;
+        c_writes += wr;
+
+        const std::uint64_t b = acc->address >> 6;
+        const int s1 = L1::set_of(b);
+
+        int w1 = l1_.find_way(s1, b);
+        bool l1_hit = (w1 >= 0);
+
+        if (__builtin_expect(l1_hit, 1)) {
+            l1_.touch_mru(s1, w1);
+            l1_.dirty[s1] |= static_cast<std::uint8_t>(wr << w1);
+            return;
+        }
+
+        ++c_l1_misses;
+        __asm__ volatile("" : "+r"(c_l1_misses));
+
+        const int s2 = L2::set_of(b);
+
+        int w2 = l2_.find_way(s2, b);
+        bool l2_hit = (w2 >= 0);
+        c_l2_hits += l2_hit;
+
+        if (l2_hit) {
+            l2_.touch_mru(s2, w2);
+        } else {
+            int victim = l2_.victim_way(s2);
+            c_dirty_writebacks += ((l2_.valid[s2] & l2_.dirty[s2]) >> victim) & 1;
+            l2_.set_line(s2, victim, true, false, b);
+        }
+
+        int v1 = l1_.victim_way(s1);
+        if (((l1_.valid[s1] & l1_.dirty[s1]) >> v1) & 1) {
+            std::uint64_t bv = l1_.tag[static_cast<std::size_t>(s1) * L1::NUM_WAYS + v1];
+            int s2v = L2::set_of(bv);
+
+            int wv = l2_.find_way(s2v, bv);
+            if (wv >= 0) {
+                l2_.dirty[s2v] |= (1 << wv);
+            } else {
+                int vv = l2_.victim_way(s2v);
+                c_dirty_writebacks += ((l2_.valid[s2v] & l2_.dirty[s2v]) >> vv) & 1;
+                l2_.set_line(s2v, vv, true, true, bv);
+            }
+        }
+
+        l1_.set_line(s1, v1, true, wr, b);
+    }
+
+    template <size_t... Is>
+    [[gnu::always_inline]] inline void process_batch_impl(const csot::MemAccess* __restrict acc,
+                                                          std::uint64_t& c_writes,
+                                                          std::uint64_t& c_l1_misses,
+                                                          std::uint64_t& c_l2_hits,
+                                                          std::uint64_t& c_dirty_writebacks,
+                                                          std::index_sequence<Is...>) {
+        (process_one(acc + Is, c_writes, c_l1_misses, c_l2_hits, c_dirty_writebacks), ...);
+    }
+    
+    template <size_t N>
+    [[gnu::always_inline]] inline void process_batch(const csot::MemAccess* __restrict acc,
+                                                     std::uint64_t& c_writes,
+                                                     std::uint64_t& c_l1_misses,
+                                                     std::uint64_t& c_l2_hits,
+                                                     std::uint64_t& c_dirty_writebacks) {
+        process_batch_impl(acc, c_writes, c_l1_misses, c_l2_hits, c_dirty_writebacks, std::make_index_sequence<N>{});
+    }
+
     csot::CacheStats run(const csot::MemAccess* __restrict acc, std::size_t n) override {
 #ifdef CSOT_CHECK_ALLOCS
         g_hot_path_active = true;
@@ -244,65 +318,15 @@ public:
         std::uint64_t c_l2_hits = 0;
         std::uint64_t c_dirty_writebacks = 0;
 
-        // Pointer-based loop: keeps 'end' in a register instead of spilling 'n' to the stack.
-        // This turns 'cmp %rsi,-0x8(%rsp)' into 'cmp %reg,%reg' (1 cycle faster).
-        const csot::MemAccess* const end = acc + n;
+        constexpr std::size_t BATCH_SIZE = 8;
+        const csot::MemAccess* const end_batch = acc + (n / BATCH_SIZE) * BATCH_SIZE;
+        for (; acc < end_batch; acc += BATCH_SIZE) {
+            process_batch<BATCH_SIZE>(acc, c_writes, c_l1_misses, c_l2_hits, c_dirty_writebacks);
+        }
+
+        const csot::MemAccess* const end = acc + (n % BATCH_SIZE);
         for (; acc < end; ++acc) {
-            __builtin_prefetch(acc + 8, 0, 0);
-
-            const std::uint32_t wr = acc->is_write;
-            c_writes += wr;
-
-            const std::uint64_t b = acc->address >> 6;
-            const int s1 = L1::set_of(b);
-
-            // L1 lookup using 'b' instead of tag!
-            int w1 = l1_.find_way(s1, b);
-            bool l1_hit = (w1 >= 0);
-
-            if (__builtin_expect(l1_hit, 1)) {
-                l1_.touch_mru(s1, w1);
-                l1_.meta[s1].dirty |= static_cast<std::uint8_t>(wr << w1);
-                continue;
-            }
-
-            ++c_l1_misses;  // Only incremented on the cold miss path (~5% of iterations)
-            __asm__ volatile("" : "+r"(c_l1_misses)); // Barrier to prevent compiler inverting the counter
-
-            // ONLY calculate L2 properties if L1 misses!
-            const int s2 = L2::set_of(b);
-
-            // L2 lookup using 'b'
-            int w2 = l2_.find_way(s2, b);
-            bool l2_hit = (w2 >= 0);
-            c_l2_hits += l2_hit;
-
-            if (l2_hit) {
-                l2_.touch_mru(s2, w2);
-            } else {
-                int victim = l2_.victim_way(s2);
-                c_dirty_writebacks += ((l2_.meta[s2].valid & l2_.meta[s2].dirty) >> victim) & 1;
-                l2_.set_line(s2, victim, true, false, b);
-            }
-
-            // Fill L1, possibly write back dirty L1 victim
-            int v1 = l1_.victim_way(s1);
-            if (((l1_.meta[s1].valid & l1_.meta[s1].dirty) >> v1) & 1) {
-                // We stored 'b' directly, so we don't need to reconstruct it!
-                std::uint64_t bv = l1_.tag[static_cast<std::size_t>(s1) * L1::NUM_WAYS + v1];
-                int s2v = L2::set_of(bv);
-
-                int wv = l2_.find_way(s2v, bv);
-                if (wv >= 0) {
-                    l2_.meta[s2v].dirty |= (1 << wv);
-                } else {
-                    int vv = l2_.victim_way(s2v);
-                    c_dirty_writebacks += ((l2_.meta[s2v].valid & l2_.meta[s2v].dirty) >> vv) & 1;
-                    l2_.set_line(s2v, vv, true, true, bv);
-                }
-            }
-
-            l1_.set_line(s1, v1, true, wr, b);
+            process_one(acc, c_writes, c_l1_misses, c_l2_hits, c_dirty_writebacks);
         }
 
 #ifdef CSOT_CHECK_ALLOCS

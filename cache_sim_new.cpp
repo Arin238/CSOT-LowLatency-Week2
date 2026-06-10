@@ -224,7 +224,7 @@ public:
         std::uint64_t c_l2_hits = 0;
         std::uint64_t c_dirty_writebacks = 0;
 
-        constexpr std::size_t BATCH_SIZE = 4;
+        constexpr std::size_t BATCH_SIZE = 2;
         const csot::MemAccess* const end_batch = acc + (n / BATCH_SIZE) * BATCH_SIZE;
         for (; acc < end_batch; acc += BATCH_SIZE) {
             process_batch<BATCH_SIZE>(acc, c_writes, c_l1_misses, c_l2_hits, c_dirty_writebacks);
