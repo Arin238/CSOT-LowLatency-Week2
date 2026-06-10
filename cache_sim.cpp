@@ -255,10 +255,9 @@ public:
 
             const std::uint64_t b = acc->address >> 6;
             const int s1 = L1::set_of(b);
-            const std::uint64_t t1 = L1::tag_of(b);
 
-            // L1 lookup
-            int w1 = l1_.find_way(s1, t1);
+            // L1 lookup using 'b' instead of tag!
+            int w1 = l1_.find_way(s1, b);
             bool l1_hit = (w1 >= 0);
 
             if (__builtin_expect(l1_hit, 1)) {
@@ -268,13 +267,13 @@ public:
             }
 
             ++c_l1_misses;  // Only incremented on the cold miss path (~5% of iterations)
+            __asm__ volatile("" : "+r"(c_l1_misses)); // Barrier to prevent compiler inverting the counter
 
             // ONLY calculate L2 properties if L1 misses!
             const int s2 = L2::set_of(b);
-            const std::uint64_t t2 = L2::tag_of(b);
 
-            // L2 lookup
-            int w2 = l2_.find_way(s2, t2);
+            // L2 lookup using 'b'
+            int w2 = l2_.find_way(s2, b);
             bool l2_hit = (w2 >= 0);
             c_l2_hits += l2_hit;
 
@@ -283,28 +282,27 @@ public:
             } else {
                 int victim = l2_.victim_way(s2);
                 c_dirty_writebacks += ((l2_.meta[s2].valid & l2_.meta[s2].dirty) >> victim) & 1;
-                l2_.set_line(s2, victim, true, false, t2);
+                l2_.set_line(s2, victim, true, false, b);
             }
 
             // Fill L1, possibly write back dirty L1 victim
             int v1 = l1_.victim_way(s1);
             if (((l1_.meta[s1].valid & l1_.meta[s1].dirty) >> v1) & 1) {
-                std::uint64_t victim_tag = l1_.tag[static_cast<std::size_t>(s1) * L1::NUM_WAYS + v1];
-                std::uint64_t bv = (victim_tag << L1::INDEX_BITS) | static_cast<std::uint64_t>(s1);
+                // We stored 'b' directly, so we don't need to reconstruct it!
+                std::uint64_t bv = l1_.tag[static_cast<std::size_t>(s1) * L1::NUM_WAYS + v1];
                 int s2v = L2::set_of(bv);
-                std::uint64_t t2v = L2::tag_of(bv);
 
-                int wv = l2_.find_way(s2v, t2v);
+                int wv = l2_.find_way(s2v, bv);
                 if (wv >= 0) {
                     l2_.meta[s2v].dirty |= (1 << wv);
                 } else {
                     int vv = l2_.victim_way(s2v);
                     c_dirty_writebacks += ((l2_.meta[s2v].valid & l2_.meta[s2v].dirty) >> vv) & 1;
-                    l2_.set_line(s2v, vv, true, true, t2v);
+                    l2_.set_line(s2v, vv, true, true, bv);
                 }
             }
 
-            l1_.set_line(s1, v1, true, wr, t1);
+            l1_.set_line(s1, v1, true, wr, b);
         }
 
 #ifdef CSOT_CHECK_ALLOCS
