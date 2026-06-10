@@ -97,7 +97,7 @@ namespace TableLRU {
         p[7] = static_cast<std::uint8_t>(c_ctz(avail));
     }
 
-    constexpr int CONSTEXPR_STATES = 5040; // 1/8th of the table
+    constexpr int CONSTEXPR_STATES = 5040; // 1/8th of the table (compile-time)
 
     struct PartialTable {
         std::uint16_t next[CONSTEXPR_STATES][8];
@@ -130,23 +130,52 @@ namespace TableLRU {
 
     constexpr PartialTable PARTIAL = compute_partial();
 
+    // ── Runtime-only encode/decode using hardware POPCNT/TZCNT ──────────
+    // These replace the constexpr scalar loops that were ALL the perf hotspots.
+    // __builtin_popcount → single POPCNT instruction (1 cycle vs ~10-cycle loop)
+    // __builtin_ctz      → single TZCNT instruction  (3 cycles vs ~8-cycle loop)
+
+    [[gnu::always_inline]] inline std::uint16_t encode_rt(std::uint64_t v) {
+        std::uint32_t seen = 0, code = 0, p;
+        p = v & 0xFF; seen |= (1u << p); code += p * 5040; v >>= 8;
+        p = v & 0xFF; code += (p - __builtin_popcount(seen & ((1u << p) - 1u))) * 720; seen |= (1u << p); v >>= 8;
+        p = v & 0xFF; code += (p - __builtin_popcount(seen & ((1u << p) - 1u))) * 120; seen |= (1u << p); v >>= 8;
+        p = v & 0xFF; code += (p - __builtin_popcount(seen & ((1u << p) - 1u))) * 24;  seen |= (1u << p); v >>= 8;
+        p = v & 0xFF; code += (p - __builtin_popcount(seen & ((1u << p) - 1u))) * 6;   seen |= (1u << p); v >>= 8;
+        p = v & 0xFF; code += (p - __builtin_popcount(seen & ((1u << p) - 1u))) * 2;   seen |= (1u << p); v >>= 8;
+        p = v & 0xFF; code += (p - __builtin_popcount(seen & ((1u << p) - 1u)));
+        return static_cast<std::uint16_t>(code);
+    }
+
+    [[gnu::always_inline]] inline void decode_rt(std::uint32_t code, std::uint8_t p[8]) {
+        std::uint32_t avail = 0xFF, idx, tmp;
+        idx = code / 5040; code %= 5040; tmp = avail; for (std::uint32_t k = 0; k < idx; ++k) tmp &= tmp - 1; p[0] = static_cast<std::uint8_t>(__builtin_ctz(tmp)); avail &= ~(1u << p[0]);
+        idx = code / 720;  code %= 720;  tmp = avail; for (std::uint32_t k = 0; k < idx; ++k) tmp &= tmp - 1; p[1] = static_cast<std::uint8_t>(__builtin_ctz(tmp)); avail &= ~(1u << p[1]);
+        idx = code / 120;  code %= 120;  tmp = avail; for (std::uint32_t k = 0; k < idx; ++k) tmp &= tmp - 1; p[2] = static_cast<std::uint8_t>(__builtin_ctz(tmp)); avail &= ~(1u << p[2]);
+        idx = code / 24;   code %= 24;   tmp = avail; for (std::uint32_t k = 0; k < idx; ++k) tmp &= tmp - 1; p[3] = static_cast<std::uint8_t>(__builtin_ctz(tmp)); avail &= ~(1u << p[3]);
+        idx = code / 6;    code %= 6;    tmp = avail; for (std::uint32_t k = 0; k < idx; ++k) tmp &= tmp - 1; p[4] = static_cast<std::uint8_t>(__builtin_ctz(tmp)); avail &= ~(1u << p[4]);
+        idx = code / 2;    code %= 2;    tmp = avail; for (std::uint32_t k = 0; k < idx; ++k) tmp &= tmp - 1; p[5] = static_cast<std::uint8_t>(__builtin_ctz(tmp)); avail &= ~(1u << p[5]);
+        idx = code;                      tmp = avail; for (std::uint32_t k = 0; k < idx; ++k) tmp &= tmp - 1; p[6] = static_cast<std::uint8_t>(__builtin_ctz(tmp)); avail &= ~(1u << p[6]);
+        p[7] = static_cast<std::uint8_t>(__builtin_ctz(avail));
+    }
+
     alignas(4096) std::uint16_t next_state[40320][8];
     alignas(4096) std::uint8_t victim_way[40320];
     bool initialized = false;
 
     void init() {
         if (initialized) return;
-        
-        // Load the compile-time hybrid table safely without crashing the linker
+
+        // Copy compile-time portion from .rodata
         for (int s = 0; s < CONSTEXPR_STATES; ++s) {
             for (int w = 0; w < 8; ++w) next_state[s][w] = PARTIAL.next[s][w];
             victim_way[s] = PARTIAL.victim[s];
         }
 
-        // Dynamically evaluate the remainder with the highly-optimized uint32_t 32-bit fast math 
+        // Compute remainder using hardware POPCNT/TZCNT (not the scalar loops)
         for (std::uint32_t state = CONSTEXPR_STATES; state < 40320; ++state) {
             std::uint8_t perm[8];
-            decode_fast(state, perm);
+            decode_rt(state, perm);
             victim_way[state] = perm[7];
 
             std::uint64_t v = 0;
@@ -160,7 +189,7 @@ namespace TableLRU {
                 std::uint64_t lower_mask = (1ULL << (pos * 8)) - 1;
                 std::uint64_t upper_mask = (pos == 7) ? 0 : (~0ULL << ((pos + 1) * 8));
                 std::uint64_t new_v = static_cast<std::uint64_t>(w) | ((v & lower_mask) << 8) | (v & upper_mask);
-                next_state[state][w] = encode_fast(new_v);
+                next_state[state][w] = encode_rt(new_v);
             }
         }
         initialized = true;
@@ -294,6 +323,10 @@ public:
         const std::uint64_t b = acc->address >> 6;
         const int s1 = L1::set_of(b);
 
+        // Prefetch this access's LRU table row BEFORE the tag comparison.
+        // find_way takes ~10 cycles (SIMD), giving the prefetch time to land.
+        __builtin_prefetch(&TableLRU::next_state[l1_.lru[s1]], 0, 0);
+
         int w1 = l1_.find_way(s1, b);
         bool l1_hit = (w1 >= 0);
 
@@ -307,6 +340,9 @@ public:
         __asm__ volatile("" : "+r"(c_l1_misses));
 
         const int s2 = L2::set_of(b);
+
+        // Prefetch L2 LRU table row before the tag comparison
+        __builtin_prefetch(&TableLRU::next_state[l2_.lru[s2]], 0, 0);
 
         int w2 = l2_.find_way(s2, b);
         bool l2_hit = (w2 >= 0);
