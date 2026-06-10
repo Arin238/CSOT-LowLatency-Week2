@@ -158,9 +158,13 @@ struct Level {
     [[gnu::always_inline]] int find_way(int si, std::uint64_t t) const {
         std::size_t base = static_cast<std::size_t>(si) * WAYS;
         
-        // Force register-to-register broadcast to avoid store-to-load forwarding stall
+        // Inline asm: vmovq GP->XMM then vpbroadcastq XMM->YMM
+        // Avoids the compiler's stack spill (mov %rax,(%rsp); vpbroadcastq (%rsp),%ymm0)
 #if defined(__AVX2__)
-        __m256i key = _mm256_set1_epi64x(t);
+        __m256i key;
+        __asm__ ("vmovq %1, %%xmm0\n\t"
+                 "vpbroadcastq %%xmm0, %0"
+                 : "=x"(key) : "r"(t) : "xmm0");
         
         // The tag array is alignas(64), so base is naturally 32-byte aligned. Use _mm256_load_si256!
         __m256i a = _mm256_load_si256(reinterpret_cast<const __m256i*>(&tag[base]));
@@ -236,35 +240,34 @@ public:
 #endif
 #endif
         std::uint64_t c_writes = 0;
-        std::uint64_t c_l1_hits = 0;
+        std::uint64_t c_l1_misses = 0;  // Track MISSES, not hits — removes incq from L1 hot path
         std::uint64_t c_l2_hits = 0;
         std::uint64_t c_dirty_writebacks = 0;
 
-        for (std::size_t i = 0; i < n; ++i) {
-            // Non-Temporal Access (NTA) prefetch. Changed to +8 (128 bytes ahead) to balance
-            // aggressiveness and prevent hardware queue saturation.
-            __builtin_prefetch(&acc[i + 8], 0, 0);
+        // Pointer-based loop: keeps 'end' in a register instead of spilling 'n' to the stack.
+        // This turns 'cmp %rsi,-0x8(%rsp)' into 'cmp %reg,%reg' (1 cycle faster).
+        const csot::MemAccess* const end = acc + n;
+        for (; acc < end; ++acc) {
+            __builtin_prefetch(acc + 8, 0, 0);
 
-            const csot::MemAccess& a = acc[i];
-            const std::uint32_t wr = a.is_write; // strictly 0 or 1
+            const std::uint32_t wr = acc->is_write;
             c_writes += wr;
 
-            const std::uint64_t b = a.address >> 6;
+            const std::uint64_t b = acc->address >> 6;
             const int s1 = L1::set_of(b);
             const std::uint64_t t1 = L1::tag_of(b);
 
             // L1 lookup
             int w1 = l1_.find_way(s1, t1);
             bool l1_hit = (w1 >= 0);
-            c_l1_hits += l1_hit;
 
             if (__builtin_expect(l1_hit, 1)) {
                 l1_.touch_mru(s1, w1);
-                // Branchless dirty update: if wr is 0, (0 << w1) is 0, dirty is unchanged.
-                // If wr is 1, (1 << w1) sets the dirty bit.
                 l1_.meta[s1].dirty |= static_cast<std::uint8_t>(wr << w1);
                 continue;
             }
+
+            ++c_l1_misses;  // Only incremented on the cold miss path (~5% of iterations)
 
             // ONLY calculate L2 properties if L1 misses!
             const int s2 = L2::set_of(b);
@@ -314,10 +317,10 @@ public:
         csot::CacheStats st{};
         st.writes = c_writes;
         st.reads = n - c_writes;
-        st.l1_hits = c_l1_hits;
-        st.l1_misses = n - c_l1_hits;
+        st.l1_misses = c_l1_misses;
+        st.l1_hits = n - c_l1_misses;
         st.l2_hits = c_l2_hits;
-        st.l2_misses = st.l1_misses - c_l2_hits;
+        st.l2_misses = c_l1_misses - c_l2_hits;
         st.dirty_writebacks = c_dirty_writebacks;
 
         return st;
