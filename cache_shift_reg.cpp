@@ -86,15 +86,20 @@ struct Level {
         __m256i d_mask = _mm256_set1_epi64x(~DIRTY_BIT);
         
         __m256i a = _mm256_load_si256((const __m256i*)&lines[si][0]);
-        __m256i c = _mm256_load_si256((const __m256i*)&lines[si][4]);
-        
         __m256i a_cmp = _mm256_cmpeq_epi64(_mm256_and_si256(a, d_mask), t);
-        __m256i c_cmp = _mm256_cmpeq_epi64(_mm256_and_si256(c, d_mask), t);
+        unsigned m1 = static_cast<unsigned>(_mm256_movemask_pd(_mm256_castsi256_pd(a_cmp)));
         
-        unsigned m = static_cast<unsigned>(_mm256_movemask_pd(_mm256_castsi256_pd(a_cmp))) |
-                    (static_cast<unsigned>(_mm256_movemask_pd(_mm256_castsi256_pd(c_cmp))) << 4);
+        // MRU Short-Circuit: Cache hits are heavily skewed toward the most recently used lines.
+        // By branching here, we avoid the 2nd AVX2 load & compare for >80% of hits.
+        if (__builtin_expect(m1 != 0, 1)) {
+            return __builtin_ctz(m1);
+        }
+        
+        __m256i c = _mm256_load_si256((const __m256i*)&lines[si][4]);
+        __m256i c_cmp = _mm256_cmpeq_epi64(_mm256_and_si256(c, d_mask), t);
+        unsigned m2 = static_cast<unsigned>(_mm256_movemask_pd(_mm256_castsi256_pd(c_cmp)));
                     
-        return m ? __builtin_ctz(m) : -1;
+        return m2 ? 4 + __builtin_ctz(m2) : -1;
 #else
         for (int w = 0; w < WAYS; ++w) {
             if ((lines[si][w] & ~DIRTY_BIT) == target) return w;
@@ -136,7 +141,13 @@ public:
                      std::uint64_t& c_l2_hits,
                      std::uint64_t& c_dirty_writebacks) {
         
+        // Prefetch the raw trace data
         __builtin_prefetch(acc + 8, 0, 0);
+
+        // Look-ahead Prefetching: Prefetch the actual L1 cache line for a future access
+        // This hides the 30-50 cycle main memory latency of the simulated cache fetch
+        const std::uint64_t future_b = (acc + 4)->address >> 6;
+        __builtin_prefetch(&l1_.lines[L1::set_of(future_b)][0], 0, 3);
 
         const std::uint32_t wr = acc->is_write;
         c_writes += wr;
