@@ -199,8 +199,6 @@ public:
                 int wv = l2_.find_way(s2v, bv);
                 if (wv >= 0) {
                     l2_.meta[s2v].dirty |= (1 << wv);
-                    // FIXED: A victim written to L2 counts as an L2 access!
-                    l2_.touch_mru(s2v, wv);
                 } else {
                     int vv = l2_.victim_way(s2v);
                     c_dirty_writebacks += ((l2_.meta[s2v].valid & l2_.meta[s2v].dirty) >> vv) & 1;
