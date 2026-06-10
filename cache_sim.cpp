@@ -49,7 +49,73 @@ void operator delete[](void*, std::size_t) noexcept {}
 
 #include <algorithm>
 
-// TableLRU completely removed
+namespace TableLRU {
+    // Fast Lehmer encoding directly from a 64-bit integer
+    static std::uint16_t encode_fast(std::uint64_t v) {
+        std::uint32_t seen = 0;
+        std::uint32_t code = 0;
+        std::uint32_t p;
+
+        p = v & 0xFF; seen |= (1u << p); code += p * 5040; v >>= 8;
+        p = v & 0xFF; code += (p - __builtin_popcount(seen & ((1u << p) - 1u))) * 720; seen |= (1u << p); v >>= 8;
+        p = v & 0xFF; code += (p - __builtin_popcount(seen & ((1u << p) - 1u))) * 120; seen |= (1u << p); v >>= 8;
+        p = v & 0xFF; code += (p - __builtin_popcount(seen & ((1u << p) - 1u))) * 24; seen |= (1u << p); v >>= 8;
+        p = v & 0xFF; code += (p - __builtin_popcount(seen & ((1u << p) - 1u))) * 6; seen |= (1u << p); v >>= 8;
+        p = v & 0xFF; code += (p - __builtin_popcount(seen & ((1u << p) - 1u))) * 2; seen |= (1u << p); v >>= 8;
+        p = v & 0xFF; code += (p - __builtin_popcount(seen & ((1u << p) - 1u)));
+        return static_cast<std::uint16_t>(code);
+    }
+
+    // Fast Lehmer decoding completely unrolled
+    static void decode_fast(std::uint16_t code, std::uint8_t p[8]) {
+        std::uint8_t avail = 0xFF; int idx; std::uint8_t tmp;
+        idx = code / 5040; code %= 5040; tmp = avail; for (int k = 0; k < idx; ++k) tmp &= tmp - 1; p[0] = static_cast<std::uint8_t>(__builtin_ctz(tmp)); avail &= ~(1u << p[0]);
+        idx = code / 720; code %= 720; tmp = avail; for (int k = 0; k < idx; ++k) tmp &= tmp - 1; p[1] = static_cast<std::uint8_t>(__builtin_ctz(tmp)); avail &= ~(1u << p[1]);
+        idx = code / 120; code %= 120; tmp = avail; for (int k = 0; k < idx; ++k) tmp &= tmp - 1; p[2] = static_cast<std::uint8_t>(__builtin_ctz(tmp)); avail &= ~(1u << p[2]);
+        idx = code / 24; code %= 24; tmp = avail; for (int k = 0; k < idx; ++k) tmp &= tmp - 1; p[3] = static_cast<std::uint8_t>(__builtin_ctz(tmp)); avail &= ~(1u << p[3]);
+        idx = code / 6; code %= 6; tmp = avail; for (int k = 0; k < idx; ++k) tmp &= tmp - 1; p[4] = static_cast<std::uint8_t>(__builtin_ctz(tmp)); avail &= ~(1u << p[4]);
+        idx = code / 2; code %= 2; tmp = avail; for (int k = 0; k < idx; ++k) tmp &= tmp - 1; p[5] = static_cast<std::uint8_t>(__builtin_ctz(tmp)); avail &= ~(1u << p[5]);
+        idx = code; tmp = avail; for (int k = 0; k < idx; ++k) tmp &= tmp - 1; p[6] = static_cast<std::uint8_t>(__builtin_ctz(tmp)); avail &= ~(1u << p[6]);
+        p[7] = static_cast<std::uint8_t>(__builtin_ctz(avail));
+    }
+
+    alignas(4096) std::uint16_t next_state[40320][8];
+    alignas(4096) std::uint8_t victim_way[40320];
+    bool initialized = false;
+
+    void init() {
+        if (initialized) return;
+#ifdef __linux__
+        madvise(next_state, sizeof(next_state), MADV_HUGEPAGE);
+        madvise(victim_way, sizeof(victim_way), MADV_HUGEPAGE);
+        mlock(next_state, sizeof(next_state));
+        mlock(victim_way, sizeof(victim_way));
+#endif
+        for (std::uint16_t state = 0; state < 40320; ++state) {
+            std::uint8_t perm[8];
+            decode_fast(state, perm);
+            victim_way[state] = perm[7];
+
+            std::uint64_t v;
+            __builtin_memcpy(&v, perm, 8);
+
+            std::uint8_t inv[8];
+            inv[perm[0]] = 0; inv[perm[1]] = 1; inv[perm[2]] = 2; inv[perm[3]] = 3;
+            inv[perm[4]] = 4; inv[perm[5]] = 5; inv[perm[6]] = 6; inv[perm[7]] = 7;
+
+            for (int w = 0; w < 8; ++w) {
+                const int pos = inv[w];
+                std::uint64_t lower_mask = (1ULL << (pos * 8)) - 1;
+                std::uint64_t upper_mask = (pos == 7) ? 0 : (~0ULL << ((pos + 1) * 8));
+                std::uint64_t new_v = static_cast<std::uint64_t>(w) | ((v & lower_mask) << 8) | (v & upper_mask);
+                __asm__ volatile ("" : "+r" (new_v));
+                next_state[state][w] = encode_fast(new_v);
+            }
+        }
+        initialized = true;
+    }
+}
+
 namespace {
 
 constexpr int log2_of(int v) { int r = 0; while ((1 << r) < v) ++r; return r; }
@@ -67,7 +133,7 @@ struct Level {
     struct Meta {
         std::uint8_t valid;   // bitmask: 1 = valid
         std::uint8_t dirty;   // bitmask: 1 = dirty
-        std::uint64_t lru;    // 64-bit packed byte array of way ordering [MRU...LRU]
+        std::uint16_t lru;    // permutation ID 0..40319
     };
 
     alignas(64) std::array<std::uint64_t, SETS * WAYS> tag{};
@@ -78,8 +144,7 @@ struct Level {
         for (int i = 0; i < SETS; ++i) {
             meta[i].valid = 0;
             meta[i].dirty = 0;
-            // Initialize with way 0 at MRU, way 7 at LRU
-            meta[i].lru = 0x0706050403020100ULL;
+            meta[i].lru = 0;
         }
     }
 
@@ -95,7 +160,7 @@ struct Level {
         
         // Force register-to-register broadcast to avoid store-to-load forwarding stall
 #if defined(__AVX2__)
-        __m256i key = _mm256_broadcastq_epi64(_mm_cvtsi64_si128(t));
+        __m256i key = _mm256_set1_epi64x(t);
         
         // The tag array is alignas(64), so base is naturally 32-byte aligned. Use _mm256_load_si256!
         __m256i a = _mm256_load_si256(reinterpret_cast<const __m256i*>(&tag[base]));
@@ -124,19 +189,7 @@ struct Level {
     }
 
     [[gnu::always_inline]] void touch_mru(int si, int way) {
-        std::uint64_t v = meta[si].lru;
-        
-        // Find the byte position of 'way' inside the 64-bit integer
-        std::uint64_t search = static_cast<std::uint64_t>(way) * 0x0101010101010101ULL;
-        std::uint64_t eq = v ^ search;
-        // zero_bytes sets the MSB (0x80) for any byte that equals 'way'
-        std::uint64_t zero_bytes = (eq - 0x0101010101010101ULL) & ~eq & 0x8080808080808080ULL;
-        int pos = __builtin_ctzll(zero_bytes) / 8;
-        
-        // Construct the new state by bringing 'way' to the front (MRU)
-        std::uint64_t lower_mask = (1ULL << (pos * 8)) - 1;
-        std::uint64_t upper_mask = (pos == 7) ? 0 : (~0ULL << ((pos + 1) * 8));
-        meta[si].lru = static_cast<std::uint64_t>(way) | ((v & lower_mask) << 8) | (v & upper_mask);
+        meta[si].lru = TableLRU::next_state[meta[si].lru][way];
     }
 
     [[gnu::always_inline]] int victim_way(int si) const {
@@ -144,8 +197,7 @@ struct Level {
         if (__builtin_expect(invalid, 0)) {
             return __builtin_ctz(invalid);
         }
-        // The LRU way is stored at the very end of the 64-bit integer (bits 56-63)
-        return (meta[si].lru >> 56) & 0xFF;
+        return TableLRU::victim_way[meta[si].lru];
     }
 
     [[gnu::always_inline]] void set_line(int si, int way, bool v, bool d, std::uint64_t t) {
@@ -171,6 +223,7 @@ using L2 = Level<512, 8>;
 class BaselineCacheSim final : public csot::CacheSim {
 public:
     void on_init() override {
+        TableLRU::init();
         l1_.init();
         l2_.init();
     }
@@ -188,8 +241,8 @@ public:
         std::uint64_t c_dirty_writebacks = 0;
 
         for (std::size_t i = 0; i < n; ++i) {
-            // Optional prefetch – test with your trace; often redundant on modern CPUs
-            // __builtin_prefetch(&acc[i + 16], 0, 0);
+            // Non-Temporal Access (NTA) prefetch to avoid polluting L1 cache with the input stream
+            __builtin_prefetch(&acc[i + 16], 0, 0);
 
             const csot::MemAccess& a = acc[i];
             const std::uint32_t wr = a.is_write; // strictly 0 or 1
@@ -198,8 +251,6 @@ public:
             const std::uint64_t b = a.address >> 6;
             const int s1 = L1::set_of(b);
             const std::uint64_t t1 = L1::tag_of(b);
-            const int s2 = L2::set_of(b);
-            const std::uint64_t t2 = L2::tag_of(b);
 
             // L1 lookup
             int w1 = l1_.find_way(s1, t1);
@@ -213,6 +264,10 @@ public:
                 l1_.meta[s1].dirty |= static_cast<std::uint8_t>(wr << w1);
                 continue;
             }
+
+            // ONLY calculate L2 properties if L1 misses!
+            const int s2 = L2::set_of(b);
+            const std::uint64_t t2 = L2::tag_of(b);
 
             // L2 lookup
             int w2 = l2_.find_way(s2, t2);
