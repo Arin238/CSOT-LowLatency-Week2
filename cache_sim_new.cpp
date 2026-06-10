@@ -1,4 +1,4 @@
-#include "cache_sim.h"
+#include "cache_sim.hpp"
 #include <immintrin.h>
 #include <cstdint>
 #include <cstring>
