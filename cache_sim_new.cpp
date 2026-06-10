@@ -102,6 +102,10 @@ struct Level {
     }
 
     [[gnu::always_inline]] int victim_way(int si) const {
+        unsigned invalid = static_cast<unsigned>(~meta[si].valid) & 0xFF;
+        if (__builtin_expect(invalid, 0)) {
+            return __builtin_ctz(invalid);
+        }
         std::uint64_t m = meta[si].lru_matrix;
         // SWAR technique to locate the single "zero byte" inside the matrix.
         // A row with all zeros is mathematically guaranteed to be the exact true-LRU.
@@ -128,18 +132,17 @@ struct Level {
     }
 };
 
-using L1 = Level<256, 8>;
-using L2 = Level<8192, 8>;
+using L1 = Level<64, 8>;
+using L2 = Level<512, 8>;
 
 class HybridCacheSim : public csot::CacheSim {
 public:
     HybridCacheSim() {
-        l1_.init();
-        l2_.init();
     }
 
     void on_init() override {
-        // Nothing special needed! Bit-Matrix LRU is totally compact!
+        l1_.init();
+        l2_.init();
     }
 
     csot::CacheStats run(const csot::MemAccess* __restrict acc, std::size_t n) override {
