@@ -79,7 +79,7 @@ struct Level {
         return static_cast<int>(blk & INDEX_MASK);
     }
 
-    // Find the way index. Returns -1 if miss.
+    // Find the way index. Returns -1 if miss. Completely branchless.
     [[gnu::always_inline]] int find_way(int si, std::uint64_t target) const {
 #if defined(__AVX2__)
         __m256i t = _mm256_set1_epi64x(target);
@@ -89,17 +89,12 @@ struct Level {
         __m256i a_cmp = _mm256_cmpeq_epi64(_mm256_and_si256(a, d_mask), t);
         unsigned m1 = static_cast<unsigned>(_mm256_movemask_pd(_mm256_castsi256_pd(a_cmp)));
         
-        // MRU Short-Circuit: Cache hits are heavily skewed toward the most recently used lines.
-        // By branching here, we avoid the 2nd AVX2 load & compare for >80% of hits.
-        if (__builtin_expect(m1 != 0, 1)) {
-            return __builtin_ctz(m1);
-        }
-        
         __m256i c = _mm256_load_si256((const __m256i*)&lines[si][4]);
         __m256i c_cmp = _mm256_cmpeq_epi64(_mm256_and_si256(c, d_mask), t);
         unsigned m2 = static_cast<unsigned>(_mm256_movemask_pd(_mm256_castsi256_pd(c_cmp)));
-                    
-        return m2 ? 4 + __builtin_ctz(m2) : -1;
+        
+        unsigned m = m1 | (m2 << 4);
+        return m ? __builtin_ctz(m) : -1;
 #else
         for (int w = 0; w < WAYS; ++w) {
             if ((lines[si][w] & ~DIRTY_BIT) == target) return w;
@@ -108,19 +103,29 @@ struct Level {
 #endif
     }
 
-    // Shifts elements 0..(k-1) right by 1, and inserts 'line' at 0.
+    // Shifts elements 0..(k-1) right by 1, and inserts 'line' at 0. Completely branchless.
     [[gnu::always_inline]] void promote(int si, int k, std::uint64_t line) {
-        // A switch perfectly forces a jump table / conditional moves without loops
-        switch (k) {
-            case 7: lines[si][7] = lines[si][6]; [[fallthrough]];
-            case 6: lines[si][6] = lines[si][5]; [[fallthrough]];
-            case 5: lines[si][5] = lines[si][4]; [[fallthrough]];
-            case 4: lines[si][4] = lines[si][3]; [[fallthrough]];
-            case 3: lines[si][3] = lines[si][2]; [[fallthrough]];
-            case 2: lines[si][2] = lines[si][1]; [[fallthrough]];
-            case 1: lines[si][1] = lines[si][0]; [[fallthrough]];
-            case 0: lines[si][0] = line;
-        }
+        // Fetch all current lines
+        std::uint64_t l0 = lines[si][0];
+        std::uint64_t l1 = lines[si][1];
+        std::uint64_t l2 = lines[si][2];
+        std::uint64_t l3 = lines[si][3];
+        std::uint64_t l4 = lines[si][4];
+        std::uint64_t l5 = lines[si][5];
+        std::uint64_t l6 = lines[si][6];
+        std::uint64_t l7 = lines[si][7];
+
+        // Conditional move (cmov) guarantees 0 branch mispredictions.
+        // If index i is <= k, it takes the previous line, shifting it down.
+        // Otherwise, it keeps its current line.
+        lines[si][1] = (1 <= k) ? l0 : l1;
+        lines[si][2] = (2 <= k) ? l1 : l2;
+        lines[si][3] = (3 <= k) ? l2 : l3;
+        lines[si][4] = (4 <= k) ? l3 : l4;
+        lines[si][5] = (5 <= k) ? l4 : l5;
+        lines[si][6] = (6 <= k) ? l5 : l6;
+        lines[si][7] = (7 <= k) ? l6 : l7;
+        lines[si][0] = line;
     }
 };
 
@@ -141,13 +146,8 @@ public:
                      std::uint64_t& c_l2_hits,
                      std::uint64_t& c_dirty_writebacks) {
         
-        // Prefetch the raw trace data
+        // Prefetch the raw trace data (builtin prefetch won't segfault if out of bounds)
         __builtin_prefetch(acc + 8, 0, 0);
-
-        // Look-ahead Prefetching: Prefetch the actual L1 cache line for a future access
-        // This hides the 30-50 cycle main memory latency of the simulated cache fetch
-        const std::uint64_t future_b = (acc + 4)->address >> 6;
-        __builtin_prefetch(&l1_.lines[L1::set_of(future_b)][0], 0, 3);
 
         const std::uint32_t wr = acc->is_write;
         c_writes += wr;
