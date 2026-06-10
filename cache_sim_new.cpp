@@ -83,15 +83,24 @@ struct Level {
         unsigned m = (unsigned)_mm256_movemask_pd(_mm256_castsi256_pd(_mm256_cmpeq_epi64(a, key)))
                    | ((unsigned)_mm256_movemask_pd(_mm256_castsi256_pd(_mm256_cmpeq_epi64(c, key))) << 4);
         
-        if (m) {
-            return __builtin_ctz(m);
-        }
-        return -1;
+        return m ? __builtin_ctz(m) : -1;
+#elif defined(__SSE4_1__)
+        __m128i key = _mm_set1_epi64x(b);
+        __m128i a_val = _mm_load_si128(reinterpret_cast<const __m128i*>(&tag[base + 0]));
+        __m128i b_val = _mm_load_si128(reinterpret_cast<const __m128i*>(&tag[base + 2]));
+        __m128i c_val = _mm_load_si128(reinterpret_cast<const __m128i*>(&tag[base + 4]));
+        __m128i d_val = _mm_load_si128(reinterpret_cast<const __m128i*>(&tag[base + 6]));
+        unsigned m = (unsigned)_mm_movemask_pd(_mm_castsi128_pd(_mm_cmpeq_epi64(a_val, key)))
+                   | ((unsigned)_mm_movemask_pd(_mm_castsi128_pd(_mm_cmpeq_epi64(b_val, key))) << 2)
+                   | ((unsigned)_mm_movemask_pd(_mm_castsi128_pd(_mm_cmpeq_epi64(c_val, key))) << 4)
+                   | ((unsigned)_mm_movemask_pd(_mm_castsi128_pd(_mm_cmpeq_epi64(d_val, key))) << 6);
+        return m ? __builtin_ctz(m) : -1;
 #else
-        for (int i = 0; i < WAYS; ++i) {
-            if (tag[base + i] == b) return i;
+        unsigned m = 0;
+        for (int w = 0; w < WAYS; ++w) {
+            m |= static_cast<unsigned>(tag[base + w] == b) << w;
         }
-        return -1;
+        return m ? __builtin_ctz(m) : -1;
 #endif
     }
 
@@ -116,17 +125,9 @@ struct Level {
     [[gnu::always_inline]] void set_line(int si, int way, bool valid, bool dirty, std::uint64_t b) {
         tag[si * WAYS + way] = b;
         
-        if (valid) {
-            meta[si].valid |= (1 << way);
-        } else {
-            meta[si].valid &= ~(1 << way);
-        }
-        
-        if (dirty) {
-            meta[si].dirty |= (1 << way);
-        } else {
-            meta[si].dirty &= ~(1 << way);
-        }
+        std::uint8_t mask = 1 << way;
+        meta[si].valid = (meta[si].valid & ~mask) | (-static_cast<int>(valid) & mask);
+        meta[si].dirty = (meta[si].dirty & ~mask) | (-static_cast<int>(dirty) & mask);
         
         touch_mru(si, way);
     }
