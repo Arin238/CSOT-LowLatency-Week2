@@ -158,8 +158,16 @@ public:
 
         const int w1 = l1_.find_way(s1, target);
 
-        if (__builtin_expect(w1 >= 0, 1)) {
-            // L1 HIT
+        // ULTRA FAST-PATH: MRU Hit.
+        // Cache accesses have immense temporal locality. If the hit is already at index 0,
+        // we can completely skip shifting the 64-byte array and just update the dirty bit in place!
+        if (__builtin_expect(w1 == 0, 1)) {
+            l1_.lines[s1][0] |= (static_cast<std::uint64_t>(wr) << 62);
+            return;
+        }
+
+        if (__builtin_expect(w1 > 0, 1)) {
+            // L1 HIT (not MRU)
             std::uint64_t line = l1_.lines[s1][w1] | (static_cast<std::uint64_t>(wr) << 62);
             l1_.promote(s1, w1, line);
             return;
@@ -172,8 +180,12 @@ public:
         const int s2 = L2::set_of(b);
         const int w2 = l2_.find_way(s2, target);
         
-        if (w2 >= 0) {
-            // L2 HIT
+        if (w2 == 0) {
+            // L2 MRU HIT
+            ++c_l2_hits;
+            // Line is already at MRU, nothing to shift
+        } else if (w2 > 0) {
+            // L2 HIT (not MRU)
             ++c_l2_hits;
             l2_.promote(s2, w2, l2_.lines[s2][w2]);
         } else {
@@ -220,6 +232,8 @@ public:
         std::uint64_t c_dirty_writebacks = 0;
 
         const csot::MemAccess* const end = acc + n;
+        
+        #pragma GCC unroll 4
         for (; acc < end; ++acc) {
             process_one(acc, c_writes, c_l1_misses, c_l2_hits, c_dirty_writebacks);
         }

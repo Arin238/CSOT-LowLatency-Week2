@@ -50,7 +50,8 @@ case "$ACTION" in
         build_binary "Release" "OFF"
         echo "=== Collecting Hardware PMU Performance Counters (perf stat) ==="
         # Record key CPU and Cache counters for low-latency tuning
-        perf stat -d -d -d -- \
+        perf stat -d -- \
+
             taskset -c 0 ./"$BUILD_DIR"/cache_sim_runner "$TRACE_FILE"
         ;;
 
