@@ -140,7 +140,7 @@ struct Level {
     std::array<Meta, SETS> meta{};
 
     void init() {
-        tag.fill(0);
+        tag.fill(~0ULL); // Initialize with all 1s (physically impossible tag, acts as invalid)
         for (int i = 0; i < SETS; ++i) {
             meta[i].valid = 0;
             meta[i].dirty = 0;
@@ -184,7 +184,7 @@ struct Level {
             m |= static_cast<unsigned>(tag[base + w] == t) << w;
         }
 #endif
-        m &= meta[si].valid;
+        // No need for 'm &= meta[si].valid' because invalid tags are ~0ULL, which will never match 't'
         return m ? __builtin_ctz(m) : -1;
     }
 
@@ -241,8 +241,9 @@ public:
         std::uint64_t c_dirty_writebacks = 0;
 
         for (std::size_t i = 0; i < n; ++i) {
-            // Non-Temporal Access (NTA) prefetch to avoid polluting L1 cache with the input stream
-            __builtin_prefetch(&acc[i + 16], 0, 0);
+            // Non-Temporal Access (NTA) prefetch. Changed to +8 (128 bytes ahead) to balance
+            // aggressiveness and prevent hardware queue saturation.
+            __builtin_prefetch(&acc[i + 8], 0, 0);
 
             const csot::MemAccess& a = acc[i];
             const std::uint32_t wr = a.is_write; // strictly 0 or 1
