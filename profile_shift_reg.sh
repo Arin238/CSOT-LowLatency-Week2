@@ -86,12 +86,25 @@ case "$ACTION" in
         sudo perf report -g
         ;;
 
+    "annotate")
+        build_binary "Release" "OFF"
+        echo "=== Recording CPU Cycles for Annotation ==="
+        # Record at maximum frequency without callgraphs for precise instruction profiling
+        perf record -F max -- \
+            taskset -c 0 ./"$BUILD_DIR"/cache_sim_runner "$TRACE_FILE"
+        
+        echo "=== Opening Perf Annotate ==="
+        # Use intel syntax and show source interleaving
+        perf annotate -M intel --source
+        ;;
+
     *)
-        echo "Usage: $0 [check | stats | record | malloc]"
-        echo "  check   : Assert zero heap allocations on the hot path"
-        echo "  stats   : Print hardware performance counters (cycles, IPC, cache & branch misses)"
-        echo "  record  : Sample CPU cycles and open a call-graph report"
-        echo "  malloc  : Hook into malloc calls to track active allocation call stacks"
+        echo "Usage: $0 [check | stats | record | malloc | annotate]"
+        echo "  check    : Assert zero heap allocations on the hot path"
+        echo "  stats    : Print hardware PMU counters"
+        echo "  record   : Sample CPU cycles and open a call-graph report"
+        echo "  malloc   : Hook into malloc calls to track active allocation call stacks"
+        echo "  annotate : Record and open instruction-level assembly annotation"
         exit 1
         ;;
 esac
