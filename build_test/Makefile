@@ -129,29 +129,29 @@ cache_sim_runner/fast:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/cache_sim_runner.dir/build.make CMakeFiles/cache_sim_runner.dir/build
 .PHONY : cache_sim_runner/fast
 
-cache_shift_reg.o: cache_shift_reg.cpp.o
-.PHONY : cache_shift_reg.o
+cache_sim.o: cache_sim.cpp.o
+.PHONY : cache_sim.o
 
 # target to build an object file
-cache_shift_reg.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/cache_sim_runner.dir/build.make CMakeFiles/cache_sim_runner.dir/cache_shift_reg.cpp.o
-.PHONY : cache_shift_reg.cpp.o
+cache_sim.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/cache_sim_runner.dir/build.make CMakeFiles/cache_sim_runner.dir/cache_sim.cpp.o
+.PHONY : cache_sim.cpp.o
 
-cache_shift_reg.i: cache_shift_reg.cpp.i
-.PHONY : cache_shift_reg.i
+cache_sim.i: cache_sim.cpp.i
+.PHONY : cache_sim.i
 
 # target to preprocess a source file
-cache_shift_reg.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/cache_sim_runner.dir/build.make CMakeFiles/cache_sim_runner.dir/cache_shift_reg.cpp.i
-.PHONY : cache_shift_reg.cpp.i
+cache_sim.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/cache_sim_runner.dir/build.make CMakeFiles/cache_sim_runner.dir/cache_sim.cpp.i
+.PHONY : cache_sim.cpp.i
 
-cache_shift_reg.s: cache_shift_reg.cpp.s
-.PHONY : cache_shift_reg.s
+cache_sim.s: cache_sim.cpp.s
+.PHONY : cache_sim.s
 
 # target to generate assembly for a file
-cache_shift_reg.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/cache_sim_runner.dir/build.make CMakeFiles/cache_sim_runner.dir/cache_shift_reg.cpp.s
-.PHONY : cache_shift_reg.cpp.s
+cache_sim.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/cache_sim_runner.dir/build.make CMakeFiles/cache_sim_runner.dir/cache_sim.cpp.s
+.PHONY : cache_sim.cpp.s
 
 harness/main.o: harness/main.cpp.o
 .PHONY : harness/main.o
@@ -186,9 +186,9 @@ help:
 	@echo "... edit_cache"
 	@echo "... rebuild_cache"
 	@echo "... cache_sim_runner"
-	@echo "... cache_shift_reg.o"
-	@echo "... cache_shift_reg.i"
-	@echo "... cache_shift_reg.s"
+	@echo "... cache_sim.o"
+	@echo "... cache_sim.i"
+	@echo "... cache_sim.s"
 	@echo "... harness/main.o"
 	@echo "... harness/main.i"
 	@echo "... harness/main.s"
