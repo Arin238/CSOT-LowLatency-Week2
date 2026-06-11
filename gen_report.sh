@@ -21,11 +21,11 @@ cmake -B "$BUILD_DIR" \
 cmake --build "$BUILD_DIR" -j
 
 echo "=== Recording perf data ==="
-perf record -F 999 -g --call-graph dwarf -- \
+perf record -F max -g --call-graph dwarf -- \
     taskset -c 0 ./"$BUILD_DIR"/cache_sim_runner "$TRACE_FILE"
 
 echo "=== Generating perf_report.txt ==="
 perf report --stdio > perf_report.txt
 
-echo "=== Opening in nano ==="
-nano perf_report.txt
+echo "=== Opening Perf Annotate ==="
+perf annotate -M intel --source -s _ZN12_GLOBAL__N_116BaselineCacheSim3runEPKN4csot9MemAccessEm
