@@ -20268,10 +20268,16 @@ public:
         const std::uint64_t b = acc->address >> 6;
         const int s1 = L1::set_of(b);
 
+        // PREFETCH: Bring the LRU transition row into L1d BEFORE the SIMD tag scan.
+        // lru[s1] is 128 bytes total (always hot), but next_state[lru[s1]] is a random
+        // 16-byte row in a 630KB table — guaranteed L1d miss without this prefetch.
+        // The ~10 cycles of find_way's SIMD comparison overlaps with the fetch.
+        __builtin_prefetch(&TableLRU::next_state[l1_.lru[s1]][0], 0, 1);
+
         // find_way returns 8 on miss (branchless sentinel via _tzcnt_u32)
         const int w1 = l1_.find_way(s1, b);
         if (__builtin_expect(static_cast<unsigned>(w1) < 8u, 1)) {
-            l1_.touch_mru(s1, w1);
+            l1_.touch_mru(s1, w1);  // next_state row should be in L1d from prefetch
             l1_.dirty[s1] |= static_cast<std::uint8_t>(wr << w1);
             return;
         }
@@ -20280,6 +20286,11 @@ public:
         __asm__ volatile("" : "+r"(c_l1_misses));
 
         const int s2 = L2::set_of(b);
+
+        // PREFETCH: L2's LRU transition row — same rationale, 630KB random access.
+        // Issue before find_way so SIMD overlaps with the memory fetch.
+        __builtin_prefetch(&TableLRU::next_state[l2_.lru[s2]][0], 0, 1);
+
         const int w2 = l2_.find_way(s2, b); // returns 8 on miss
         const bool l2_hit = (static_cast<unsigned>(w2) < 8u);
         c_l2_hits += static_cast<std::uint64_t>(l2_hit);
@@ -20296,6 +20307,8 @@ public:
         if (((l1_.valid[s1] & l1_.dirty[s1]) >> v1) & 1u) {
             const std::uint64_t bv = l1_.tag[static_cast<std::size_t>(s1) * L1::NUM_WAYS + v1];
             const int s2v = L2::set_of(bv);
+            // PREFETCH: writeback path also needs LRU row for the target L2 set
+            __builtin_prefetch(&TableLRU::next_state[l2_.lru[s2v]][0], 0, 1);
             const int wv = l2_.find_way(s2v, bv); // 8 = miss
             if (static_cast<unsigned>(wv) < 8u) {
                 l2_.dirty[s2v] |= static_cast<std::uint8_t>(1u << wv);
