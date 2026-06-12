@@ -20223,15 +20223,15 @@ struct Level {
         lru[si] = TableLRU::next_state[lru[si]][way];
     }
 
-    // Branchless victim selection: prefers invalid ways, falls back to LRU
-    // NOTE: keep the branch here — 'invalid' is 0 at steady state so predictor learns it perfectly,
-    // and avoiding the unconditional TableLRU::victim_way[] lookup prevents cold cache misses.
+    // Branchless victim selection: prefers invalid ways, falls back to LRU.
+    // REQUIRES: caller has prefetched victim_way[lru[si]] so the unconditional
+    // table read doesn't cause L1d misses.
     [[gnu::always_inline]] int victim_way(int si) const {
         unsigned invalid = static_cast<unsigned>(~valid[si]) & 0xFF;
-        if (__builtin_expect(invalid, 0)) {
-            return static_cast<int>(_tzcnt_u32(invalid));
-        }
-        return TableLRU::victim_way[lru[si]];
+        unsigned lru_v = TableLRU::victim_way[lru[si]];  // unconditional (prefetched)
+        unsigned inv_v = static_cast<unsigned>(_tzcnt_u32(invalid));
+        // Compiler emits cmov here — zero branches
+        return static_cast<int>(invalid ? inv_v : lru_v);
     }
 
     [[gnu::always_inline]] void set_line(int si, int way, bool v, bool d, std::uint64_t t) {
@@ -20287,33 +20287,48 @@ public:
 
         const int s2 = L2::set_of(b);
 
-        // PREFETCH: L2's LRU transition row — same rationale, 630KB random access.
-        // Issue before find_way so SIMD overlaps with the memory fetch.
-        __builtin_prefetch(&TableLRU::next_state[l2_.lru[s2]][0], 0, 1);
+        // PREFETCH: L2's LRU transition row AND victim table entry.
+        // Both are random reads into large tables (630KB / 40KB).
+        // Issue before find_way so SIMD tag scan overlaps with the memory fetch.
+        const auto l2_lru_val = l2_.lru[s2];
+        __builtin_prefetch(&TableLRU::next_state[l2_lru_val][0], 0, 1);
+        __builtin_prefetch(&TableLRU::victim_way[l2_lru_val], 0, 0);
+        // Also prefetch L1's victim_way entry — needed after L2 work completes
+        __builtin_prefetch(&TableLRU::victim_way[l1_.lru[s1]], 0, 0);
 
         const int w2 = l2_.find_way(s2, b); // returns 8 on miss
         const bool l2_hit = (static_cast<unsigned>(w2) < 8u);
         c_l2_hits += static_cast<std::uint64_t>(l2_hit);
 
-        if (l2_hit) {
-            l2_.touch_mru(s2, w2);
-        } else {
-            int victim = l2_.victim_way(s2);
-            c_dirty_writebacks += ((l2_.valid[s2] & l2_.dirty[s2]) >> victim) & 1u;
-            l2_.set_line(s2, victim, true, false, b);
+        // Branchless L2 dispatch: compute victim unconditionally (prefetched),
+        // select way via cmov. Eliminates the if(l2_hit) branch entirely.
+        const int l2_victim = l2_.victim_way(s2);  // branchless (prefetched)
+        const int l2_way = l2_hit ? w2 : l2_victim; // cmov — no branch
+        l2_.touch_mru(s2, l2_way);  // correct for both hit and miss paths
+
+        // Dirty writeback counter: branchless bitwise AND
+        c_dirty_writebacks += static_cast<std::uint64_t>((!l2_hit) & (((l2_.valid[s2] & l2_.dirty[s2]) >> l2_victim) & 1u));
+
+        // Tag/valid/dirty update only on miss (well-predicted: 83% taken)
+        if (__builtin_expect(!l2_hit, 1)) {
+            l2_.tag[static_cast<std::size_t>(s2) * L2::NUM_WAYS + l2_victim] = b;
+            std::uint8_t bit = static_cast<std::uint8_t>(1u << l2_victim);
+            l2_.valid[s2] |= bit;
+            l2_.dirty[s2] &= ~bit;
         }
 
-        const int v1 = l1_.victim_way(s1);
+        const int v1 = l1_.victim_way(s1);  // branchless (prefetched above)
         if (((l1_.valid[s1] & l1_.dirty[s1]) >> v1) & 1u) {
             const std::uint64_t bv = l1_.tag[static_cast<std::size_t>(s1) * L1::NUM_WAYS + v1];
             const int s2v = L2::set_of(bv);
-            // PREFETCH: writeback path also needs LRU row for the target L2 set
+            // PREFETCH: writeback path needs LRU row + victim entry for target L2 set
             __builtin_prefetch(&TableLRU::next_state[l2_.lru[s2v]][0], 0, 1);
+            __builtin_prefetch(&TableLRU::victim_way[l2_.lru[s2v]], 0, 0);
             const int wv = l2_.find_way(s2v, bv); // 8 = miss
             if (static_cast<unsigned>(wv) < 8u) {
                 l2_.dirty[s2v] |= static_cast<std::uint8_t>(1u << wv);
             } else {
-                const int vv = l2_.victim_way(s2v);
+                const int vv = l2_.victim_way(s2v);  // branchless (prefetched)
                 c_dirty_writebacks += ((l2_.valid[s2v] & l2_.dirty[s2v]) >> vv) & 1u;
                 l2_.set_line(s2v, vv, true, true, bv);
             }
