@@ -20223,22 +20223,28 @@ struct Level {
         lru[si] = TableLRU::next_state[lru[si]][way];
     }
 
-    // Branchless victim selection: prefers invalid ways, falls back to LRU.
-    // REQUIRES: caller has prefetched victim_way[lru[si]] so the unconditional
-    // table read doesn't cause L1d misses.
     [[gnu::always_inline]] int victim_way(int si) const {
         unsigned invalid = static_cast<unsigned>(~valid[si]) & 0xFF;
-        unsigned lru_v = TableLRU::victim_way[lru[si]];  // unconditional (prefetched)
-        unsigned inv_v = static_cast<unsigned>(_tzcnt_u32(invalid));
-        // Compiler emits cmov here — zero branches
-        return static_cast<int>(invalid ? inv_v : lru_v);
+        if (__builtin_expect(invalid, 0)) {
+            return __builtin_ctz(invalid);
+        }
+        return TableLRU::victim_way[lru[si]];
     }
 
-    [[gnu::always_inline]] void set_line(int si, int way, bool v, bool d, std::uint64_t t) {
+    // v is always true at all call sites, so valid |= mask unconditionally.
+    // Split into clean/dirty variants to eliminate bool→mask conversion.
+    [[gnu::always_inline]] void set_line_clean(int si, int way, std::uint64_t t) {
         tag[static_cast<std::size_t>(si) * WAYS + way] = t;
         std::uint8_t mask = static_cast<std::uint8_t>(1u << way);
-        valid[si] = (valid[si] & ~mask) | (-static_cast<int>(v) & mask);
-        dirty[si] = (dirty[si] & ~mask) | (-static_cast<int>(d) & mask);
+        valid[si] |= mask;
+        dirty[si] &= ~mask;
+        touch_mru(si, way);
+    }
+    [[gnu::always_inline]] void set_line_dirty(int si, int way, std::uint64_t t) {
+        tag[static_cast<std::size_t>(si) * WAYS + way] = t;
+        std::uint8_t mask = static_cast<std::uint8_t>(1u << way);
+        valid[si] |= mask;
+        dirty[si] |= mask;
         touch_mru(si, way);
     }
 };
@@ -20262,79 +20268,54 @@ public:
                                             std::uint64_t& c_dirty_writebacks) {
         __builtin_prefetch(acc + 8, 0, 0);
 
+        const std::uint64_t b = acc->address >> 6;
+        const int s1 = L1::set_of(b);
         const std::uint32_t wr = acc->is_write;
         c_writes += wr;
 
-        const std::uint64_t b = acc->address >> 6;
-        const int s1 = L1::set_of(b);
-
-        // PREFETCH: Bring the LRU transition row into L1d BEFORE the SIMD tag scan.
-        // lru[s1] is 128 bytes total (always hot), but next_state[lru[s1]] is a random
-        // 16-byte row in a 630KB table — guaranteed L1d miss without this prefetch.
-        // The ~10 cycles of find_way's SIMD comparison overlaps with the fetch.
-        __builtin_prefetch(&TableLRU::next_state[l1_.lru[s1]][0], 0, 1);
-
-        // find_way returns 8 on miss (branchless sentinel via _tzcnt_u32)
         const int w1 = l1_.find_way(s1, b);
         if (__builtin_expect(static_cast<unsigned>(w1) < 8u, 1)) {
-            l1_.touch_mru(s1, w1);  // next_state row should be in L1d from prefetch
+            l1_.touch_mru(s1, w1);
             l1_.dirty[s1] |= static_cast<std::uint8_t>(wr << w1);
             return;
         }
 
         ++c_l1_misses;
-        __asm__ volatile("" : "+r"(c_l1_misses));
 
         const int s2 = L2::set_of(b);
-
-        // PREFETCH: L2's LRU transition row AND victim table entry.
-        // Both are random reads into large tables (630KB / 40KB).
-        // Issue before find_way so SIMD tag scan overlaps with the memory fetch.
-        const auto l2_lru_val = l2_.lru[s2];
-        __builtin_prefetch(&TableLRU::next_state[l2_lru_val][0], 0, 1);
-        __builtin_prefetch(&TableLRU::victim_way[l2_lru_val], 0, 0);
-        // Also prefetch L1's victim_way entry — needed after L2 work completes
-        __builtin_prefetch(&TableLRU::victim_way[l1_.lru[s1]], 0, 0);
-
-        const int w2 = l2_.find_way(s2, b); // returns 8 on miss
+        const int w2 = l2_.find_way(s2, b);
         const bool l2_hit = (static_cast<unsigned>(w2) < 8u);
-        c_l2_hits += static_cast<std::uint64_t>(l2_hit);
+        c_l2_hits += l2_hit;
 
-        // Branchless L2 dispatch: compute victim unconditionally (prefetched),
-        // select way via cmov. Eliminates the if(l2_hit) branch entirely.
-        const int l2_victim = l2_.victim_way(s2);  // branchless (prefetched)
-        const int l2_way = l2_hit ? w2 : l2_victim; // cmov — no branch
-        l2_.touch_mru(s2, l2_way);  // correct for both hit and miss paths
-
-        // Dirty writeback counter: branchless bitwise AND
-        c_dirty_writebacks += static_cast<std::uint64_t>((!l2_hit) & (((l2_.valid[s2] & l2_.dirty[s2]) >> l2_victim) & 1u));
-
-        // Tag/valid/dirty update only on miss (well-predicted: 83% taken)
-        if (__builtin_expect(!l2_hit, 1)) {
-            l2_.tag[static_cast<std::size_t>(s2) * L2::NUM_WAYS + l2_victim] = b;
-            std::uint8_t bit = static_cast<std::uint8_t>(1u << l2_victim);
-            l2_.valid[s2] |= bit;
-            l2_.dirty[s2] &= ~bit;
+        if (l2_hit) {
+            l2_.touch_mru(s2, w2);
+        } else {
+            int victim = l2_.victim_way(s2);
+            c_dirty_writebacks += ((l2_.valid[s2] & l2_.dirty[s2]) >> victim) & 1u;
+            l2_.set_line_clean(s2, victim, b);
         }
 
-        const int v1 = l1_.victim_way(s1);  // branchless (prefetched above)
+        int v1 = l1_.victim_way(s1);
         if (((l1_.valid[s1] & l1_.dirty[s1]) >> v1) & 1u) {
-            const std::uint64_t bv = l1_.tag[static_cast<std::size_t>(s1) * L1::NUM_WAYS + v1];
-            const int s2v = L2::set_of(bv);
-            // PREFETCH: writeback path needs LRU row + victim entry for target L2 set
-            __builtin_prefetch(&TableLRU::next_state[l2_.lru[s2v]][0], 0, 1);
-            __builtin_prefetch(&TableLRU::victim_way[l2_.lru[s2v]], 0, 0);
-            const int wv = l2_.find_way(s2v, bv); // 8 = miss
+            std::uint64_t bv = l1_.tag[static_cast<std::size_t>(s1) * L1::NUM_WAYS + v1];
+            int s2v = L2::set_of(bv);
+            int wv = l2_.find_way(s2v, bv);
             if (static_cast<unsigned>(wv) < 8u) {
                 l2_.dirty[s2v] |= static_cast<std::uint8_t>(1u << wv);
             } else {
-                const int vv = l2_.victim_way(s2v);  // branchless (prefetched)
+                int vv = l2_.victim_way(s2v);
                 c_dirty_writebacks += ((l2_.valid[s2v] & l2_.dirty[s2v]) >> vv) & 1u;
-                l2_.set_line(s2v, vv, true, true, bv);
+                l2_.set_line_dirty(s2v, vv, bv);
             }
         }
 
-        l1_.set_line(s1, v1, true, wr, b);
+        // Inline L1 set_line: tag + valid + dirty + touch_mru
+        // dirty bit depends on wr (variable), use branchless mask
+        l1_.tag[static_cast<std::size_t>(s1) * L1::NUM_WAYS + v1] = b;
+        std::uint8_t v1_mask = static_cast<std::uint8_t>(1u << v1);
+        l1_.valid[s1] |= v1_mask;
+        l1_.dirty[s1] = (l1_.dirty[s1] & ~v1_mask) | static_cast<std::uint8_t>(wr << v1);
+        l1_.touch_mru(s1, v1);
     }
 
     template <size_t... Is>
