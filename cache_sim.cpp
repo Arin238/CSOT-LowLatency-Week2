@@ -20224,22 +20224,21 @@ struct Level {
     }
 
     // Branchless victim selection: prefers invalid ways, falls back to LRU
+    // NOTE: keep the branch here — 'invalid' is 0 at steady state so predictor learns it perfectly,
+    // and avoiding the unconditional TableLRU::victim_way[] lookup prevents cold cache misses.
     [[gnu::always_inline]] int victim_way(int si) const {
         unsigned invalid = static_cast<unsigned>(~valid[si]) & 0xFF;
-        // If any invalid way exists, pick the lowest; otherwise use LRU table.
-        // Branchless: use invalid as a selector mask. If invalid==0, tzcnt gives 8 (no invalid),
-        // so we use a cmov-style idiom via bit manipulation.
-        unsigned lru_victim = TableLRU::victim_way[lru[si]];
-        unsigned inv_victim = _tzcnt_u32(invalid | (1u << 8)); // 8 if no invalid
-        // Select inv_victim if invalid != 0, else lru_victim — branchless via cmov
-        return static_cast<int>(invalid ? inv_victim : lru_victim);
+        if (__builtin_expect(invalid, 0)) {
+            return static_cast<int>(_tzcnt_u32(invalid));
+        }
+        return TableLRU::victim_way[lru[si]];
     }
 
-    [[gnu::always_inline]] void set_line(int si, int way, std::uint32_t v_mask, std::uint32_t d_mask, std::uint64_t t) {
+    [[gnu::always_inline]] void set_line(int si, int way, bool v, bool d, std::uint64_t t) {
         tag[static_cast<std::size_t>(si) * WAYS + way] = t;
-        std::uint8_t bit = static_cast<std::uint8_t>(1u << way);
-        valid[si] = (valid[si] & ~bit) | static_cast<std::uint8_t>(v_mask & bit);
-        dirty[si] = (dirty[si] & ~bit) | static_cast<std::uint8_t>(d_mask & bit);
+        std::uint8_t mask = static_cast<std::uint8_t>(1u << way);
+        valid[si] = (valid[si] & ~mask) | (-static_cast<int>(v) & mask);
+        dirty[si] = (dirty[si] & ~mask) | (-static_cast<int>(d) & mask);
         touch_mru(si, way);
     }
 };
@@ -20269,11 +20268,9 @@ public:
         const std::uint64_t b = acc->address >> 6;
         const int s1 = L1::set_of(b);
 
-        // find_way now returns 8 on miss (branchless sentinel)
+        // find_way returns 8 on miss (branchless sentinel via _tzcnt_u32)
         const int w1 = l1_.find_way(s1, b);
-        const bool l1_hit = (static_cast<unsigned>(w1) < 8u);
-
-        if (__builtin_expect(l1_hit, 1)) {
+        if (__builtin_expect(static_cast<unsigned>(w1) < 8u, 1)) {
             l1_.touch_mru(s1, w1);
             l1_.dirty[s1] |= static_cast<std::uint8_t>(wr << w1);
             return;
@@ -20283,59 +20280,33 @@ public:
         __asm__ volatile("" : "+r"(c_l1_misses));
 
         const int s2 = L2::set_of(b);
-        const int w2 = l2_.find_way(s2, b); // 8 = miss
+        const int w2 = l2_.find_way(s2, b); // returns 8 on miss
         const bool l2_hit = (static_cast<unsigned>(w2) < 8u);
         c_l2_hits += static_cast<std::uint64_t>(l2_hit);
 
-        // --- L2 update: branchless merge of hit and miss paths ---
-        // On hit: touch_mru(w2). On miss: evict victim, possibly writeback.
-        const int l2_victim = l2_.victim_way(s2);         // computed unconditionally
-        const int l2_way = l2_hit ? w2 : l2_victim;       // cmov — single select
-        // writeback only happens on miss && victim is valid+dirty
-        const std::uint32_t l2_vd = static_cast<std::uint32_t>(l2_.valid[s2] & l2_.dirty[s2]);
-        c_dirty_writebacks += static_cast<std::uint64_t>((!l2_hit) & ((l2_vd >> l2_victim) & 1u));
-        // On hit: keep existing dirty bit. On miss: clear dirty (new clean fill).
-        // We call set_line only on miss; on hit we just touch_mru.
-        // To stay branchless we split the action:
-        l2_.touch_mru(s2, l2_way);   // always advance LRU (correct for both paths)
-        if (__builtin_expect(!l2_hit, 0)) {
-            l2_.tag[static_cast<std::size_t>(s2) * L2::NUM_WAYS + l2_victim] = b;
-            std::uint8_t bit2 = static_cast<std::uint8_t>(1u << l2_victim);
-            l2_.valid[s2] |= bit2;
-            l2_.dirty[s2] &= ~bit2;  // clean fill
+        if (l2_hit) {
+            l2_.touch_mru(s2, w2);
+        } else {
+            int victim = l2_.victim_way(s2);
+            c_dirty_writebacks += ((l2_.valid[s2] & l2_.dirty[s2]) >> victim) & 1u;
+            l2_.set_line(s2, victim, true, false, b);
         }
 
-        // --- L1 eviction: branchless dirty writeback to L2 ---
         const int v1 = l1_.victim_way(s1);
-        const std::uint32_t l1_vd = static_cast<std::uint32_t>(l1_.valid[s1] & l1_.dirty[s1]);
-        const bool evict_dirty = (l1_vd >> v1) & 1u;
-
-        if (__builtin_expect(evict_dirty, 0)) {
+        if (((l1_.valid[s1] & l1_.dirty[s1]) >> v1) & 1u) {
             const std::uint64_t bv = l1_.tag[static_cast<std::size_t>(s1) * L1::NUM_WAYS + v1];
             const int s2v = L2::set_of(bv);
             const int wv = l2_.find_way(s2v, bv); // 8 = miss
-            const bool wb_hit = (static_cast<unsigned>(wv) < 8u);
-            if (wb_hit) {
-                // Line is in L2: just mark dirty, no writeback counter
+            if (static_cast<unsigned>(wv) < 8u) {
                 l2_.dirty[s2v] |= static_cast<std::uint8_t>(1u << wv);
             } else {
                 const int vv = l2_.victim_way(s2v);
-                const std::uint32_t vd2 = static_cast<std::uint32_t>(l2_.valid[s2v] & l2_.dirty[s2v]);
-                c_dirty_writebacks += (vd2 >> vv) & 1u;
-                l2_.tag[static_cast<std::size_t>(s2v) * L2::NUM_WAYS + vv] = bv;
-                std::uint8_t bitvv = static_cast<std::uint8_t>(1u << vv);
-                l2_.valid[s2v] |= bitvv;
-                l2_.dirty[s2v] = (l2_.dirty[s2v] & ~bitvv) | bitvv; // dirty=true
-                l2_.touch_mru(s2v, vv);
+                c_dirty_writebacks += ((l2_.valid[s2v] & l2_.dirty[s2v]) >> vv) & 1u;
+                l2_.set_line(s2v, vv, true, true, bv);
             }
         }
 
-        // Install new L1 line
-        l1_.tag[static_cast<std::size_t>(s1) * L1::NUM_WAYS + v1] = b;
-        std::uint8_t bit1 = static_cast<std::uint8_t>(1u << v1);
-        l1_.valid[s1] |= bit1;
-        l1_.dirty[s1] = (l1_.dirty[s1] & ~bit1) | static_cast<std::uint8_t>(wr ? bit1 : 0);
-        l1_.touch_mru(s1, v1);
+        l1_.set_line(s1, v1, true, wr, b);
     }
 
     template <size_t... Is>
